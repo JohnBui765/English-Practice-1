@@ -1,0 +1,495 @@
+/* Sentences screen: coverage, copy prompt → Claude → paste reply, saved sentences. */
+
+.sentences-screen .card {
+  padding: 16px;
+}
+
+/* ---------- Coverage header ---------- */
+.sn-cov {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.sn-cov .ring-label {
+  letter-spacing: -0.02em;
+}
+
+.sn-cov-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.sn-cov-title {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.sn-cov-sub {
+  margin-top: 2px;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--label-2);
+}
+
+/* ---------- Steps ---------- */
+.sn-step {
+  margin-bottom: 16px;
+}
+
+.sn-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sn-step-num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--accent-fill);
+  color: var(--on-fill);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 240ms linear;
+}
+
+.sn-step-num.done {
+  background: var(--green-fill);
+}
+
+.sn-step-num svg {
+  stroke-width: 3;
+}
+
+.sn-step-titles {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.sn-step-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 25px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.sn-step-text {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--label-2);
+}
+
+/* Options (inside step 1) */
+.sn-opts {
+  margin: 0 0 14px;
+  border-top: 0.5px solid var(--separator);
+}
+
+.sn-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 0;
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.sn-opt-label {
+  min-width: 0;
+  font-size: 16px;
+  line-height: 21px;
+}
+
+.sn-opt-sub {
+  margin-top: 1px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label-2);
+}
+
+.sn-opt .segmented {
+  flex: none;
+}
+
+.sn-seg-2 {
+  width: 112px;
+}
+
+.sn-seg-3 {
+  width: 156px;
+}
+
+/* Links under the copy button */
+.sn-links {
+  display: flex;
+  gap: 8px;
+  margin: 6px -6px 0;
+}
+
+.sn-link {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 16px;
+  gap: 6px;
+}
+
+.sn-link svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sn-disclose svg {
+  transition: transform 260ms var(--ease);
+}
+
+.sn-disclose[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.sn-prompt {
+  margin-top: 8px;
+  height: 232px;
+  font-size: 16px;
+  line-height: 21px;
+  color: var(--label-2);
+  animation: sn-in 240ms var(--ease-out);
+}
+
+/* Step 2 */
+.sn-reply {
+  margin-top: 12px;
+  height: 140px;
+  min-height: 140px;
+  font-size: 16px;
+  line-height: 21px;
+}
+
+.sn-reply-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  margin-bottom: -4px;
+}
+
+.sn-reply-hint {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label-2);
+}
+
+.sn-clear {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  margin-right: -8px;
+  padding: 0 8px;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 10px;
+  transition: opacity 120ms linear;
+}
+
+.sn-clear:active {
+  opacity: 0.4;
+}
+
+/* ---------- Result of parsing the reply ---------- */
+.sn-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sn-result:not(:empty) {
+  margin-top: 8px;
+}
+
+.sn-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--fill);
+  font-size: 15px;
+  line-height: 20px;
+  animation: sn-in 220ms var(--ease-out);
+}
+
+.sn-note.ok {
+  background: var(--green-tint);
+}
+
+.sn-note.warn {
+  background: var(--orange-tint);
+}
+
+.sn-note-icon {
+  flex: none;
+  display: inline-flex;
+  margin-top: 1px;
+  color: var(--label-2);
+}
+
+.sn-note.ok .sn-note-icon {
+  color: var(--green);
+}
+
+.sn-note.warn .sn-note-icon {
+  color: var(--orange);
+}
+
+.sn-note-icon svg {
+  stroke-width: 2.2;
+}
+
+.sn-note-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.sn-note-title {
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: 600;
+}
+
+.sn-note-text {
+  color: var(--label);
+  overflow-wrap: anywhere;
+}
+
+.sn-note-body .sn-note-text {
+  margin-top: 2px;
+  color: var(--label-2);
+}
+
+.sn-note-list {
+  margin: 6px 0 0;
+  padding: 0 0 0 18px;
+  color: var(--label);
+  overflow-wrap: anywhere;
+}
+
+.sn-note-list li + li {
+  margin-top: 4px;
+}
+
+.sn-ref {
+  font-weight: 600;
+}
+
+.sn-more {
+  list-style: none;
+  margin-left: -18px;
+  color: var(--label-2);
+}
+
+.sn-missing-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: sn-in 220ms var(--ease-out);
+}
+
+.sn-missing-btn {
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 15px;
+  white-space: normal;
+}
+
+.sn-missing-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sn-missing-foot {
+  text-align: center;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label-2);
+}
+
+/* ---------- Current sentences ---------- */
+.sn-current {
+  margin-top: 12px;
+}
+
+.sn-cur-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 4px;
+  text-align: left;
+  color: var(--label);
+  border-radius: 10px;
+  transition: opacity 120ms linear;
+}
+
+.sn-cur-head:active {
+  opacity: 0.55;
+}
+
+.sn-cur-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sn-cur-title {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.sn-cur-count {
+  font-size: 17px;
+  color: var(--label-2);
+}
+
+.sn-cur-chevron {
+  margin-left: auto;
+  display: inline-flex;
+  color: var(--accent);
+  transition: transform 260ms var(--ease);
+}
+
+.sn-cur-chevron svg {
+  stroke-width: 2.6;
+}
+
+.sn-cur-head[aria-expanded='true'] .sn-cur-chevron {
+  transform: rotate(180deg);
+}
+
+.sn-cur-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 6px;
+  animation: sn-in 240ms var(--ease-out);
+}
+
+.sn-word-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 2px;
+}
+
+.sn-word {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.sn-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 4px 12px 16px;
+}
+
+.sn-row + .sn-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 0;
+  height: 0.5px;
+  background: var(--separator);
+}
+
+.sn-row-main {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.sn-text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.sn-answer {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.sn-vi {
+  margin: 3px 0 0;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+}
+
+.sn-caption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 3px;
+}
+
+.sn-sense {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label-2);
+}
+
+.sn-sense strong {
+  font-weight: 600;
+  color: var(--label);
+}
+
+.sn-caption .badge {
+  flex: none;
+}
+
+.sn-trash {
+  flex: none;
+  margin-top: -8px;
+  color: var(--label-2);
+}
+
+.sn-trash:active {
+  color: var(--red-text);
+}
+
+@keyframes sn-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+}

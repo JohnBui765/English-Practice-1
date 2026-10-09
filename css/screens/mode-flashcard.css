@@ -1,0 +1,248 @@
+/* Word → Meaning flashcard (js/screens/practice/flashcard.js) */
+
+.fc-scene {
+  perspective: 1600px;
+  -webkit-perspective: 1600px;
+}
+
+/* Both faces share one grid cell, so the card is as tall as the taller face. */
+.fc-card {
+  position: relative;
+  display: grid;
+  grid-template: 'face' auto / minmax(0, 1fr);
+  min-height: clamp(300px, 52vh, 460px);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
+  transform: rotateY(0deg);
+}
+
+.fc-card.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.fc-face {
+  grid-area: face;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transition: box-shadow 200ms linear;
+}
+
+.fc-front {
+  transform: rotateY(0deg);
+  align-items: center;
+  text-align: center;
+  padding: 56px 20px 0;
+}
+
+.fc-back {
+  transform: rotateY(180deg);
+  padding: 18px 20px 22px;
+}
+
+/* Once the turn has finished, take the hidden face out of the picture
+   (WebKit can let children of a backface-hidden face show through). */
+.fc-card:not(.is-animating):not(.is-flipped) .fc-back,
+.fc-card:not(.is-animating).is-flipped .fc-front {
+  visibility: hidden;
+}
+
+.fc-card.is-animating .fc-face {
+  pointer-events: none;
+}
+
+/* Front */
+.fc-front-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.fc-word {
+  max-width: 100%;
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  overflow-wrap: anywhere;
+  hyphens: manual;
+}
+
+.fc-ipa {
+  font-size: 17px;
+  margin-top: -4px;
+}
+
+.fc-front > .fc-say {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.fc-say svg {
+  width: 22px;
+  height: 22px;
+}
+
+.fc-hint {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  margin-top: 12px;
+  border-top: 0.5px solid var(--separator);
+  color: var(--label-2);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* Back */
+.fc-back-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: -6px -8px 10px 0;
+}
+
+.fc-back-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.fc-back-word {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.fc-senses {
+  list-style: none;
+  margin: 0;
+  padding: 14px 0 0;
+  border-top: 0.5px solid var(--separator);
+}
+
+.fc-sense {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 20px;
+  line-height: 27px;
+  overflow-wrap: anywhere;
+}
+
+.fc-sense + .fc-sense {
+  margin-top: 12px;
+}
+
+.fc-sense-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.fc-num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  border-radius: 12px;
+  background: var(--accent-tint);
+  color: var(--accent-on-tint);
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.fc-syn {
+  margin: 16px 0 0;
+  color: var(--label-2);
+  font-size: 16px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.fc-syn-mark {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.fc-examples {
+  margin-top: 14px;
+}
+
+.fc-example {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--fill-2);
+  color: var(--label);
+  font-size: 16px;
+  line-height: 22px;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.fc-example + .fc-example {
+  margin-top: 8px;
+}
+
+.fc-context {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--fill);
+  color: var(--label);
+  font-size: 15px;
+  line-height: 21px;
+  overflow-wrap: anywhere;
+}
+
+.fc-context-label {
+  color: var(--label-2);
+  font-weight: 600;
+}
+
+/* Reduced motion: no turning, the faces cross-fade in place. */
+@media (prefers-reduced-motion: reduce) {
+  .fc-card,
+  .fc-card.is-flipped,
+  .fc-back {
+    transform: none;
+  }
+
+  .fc-card.is-flipped .fc-front,
+  .fc-card:not(.is-flipped) .fc-back {
+    opacity: 0;
+  }
+
+  .fc-card.is-flipped .fc-back,
+  .fc-card:not(.is-flipped) .fc-front {
+    z-index: 1;
+  }
+}

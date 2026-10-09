@@ -1,0 +1,67 @@
+/* Settings screen */
+
+.settings-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.settings-stacked .row-title {
+  font-size: 15px;
+  color: var(--label-2);
+}
+
+.settings-control .switch {
+  margin-left: 8px;
+}
+
+.check-mark {
+  width: 22px;
+  color: var(--accent);
+  display: inline-flex;
+}
+
+.check-mark svg {
+  stroke-width: 2.6;
+}
+
+.settings-version {
+  margin: 8px 0 0;
+  text-align: center;
+  color: var(--label-2);
+  font-size: 13px;
+}
+
+.settings-help {
+  padding: 4px 0 12px;
+  font-size: 16px;
+  line-height: 23px;
+}
+
+.settings-help p {
+  margin: 0 0 14px;
+  color: var(--label);
+}
+
+.settings-help ol {
+  margin: 0 0 16px;
+  padding: 14px 16px 14px 36px;
+  background: var(--card);
+  border-radius: var(--radius);
+}
+
+.settings-help li + li {
+  margin-top: 8px;
+}
+
+.inline-icon {
+  display: inline-block !important;
+  vertical-align: -3px;
+  color: var(--accent);
+}
+
+.settings-warn {
+  color: var(--red);
+}

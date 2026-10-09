@@ -1,0 +1,202 @@
+/* Lists tab */
+
+/* ---------- Search field (under the large title) ---------- */
+.lists-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: -6px 0 18px;
+}
+
+.lists-search-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 34px 0 8px;
+  border-radius: 10px;
+  background: var(--fill);
+  color: var(--label-2);
+  cursor: text;
+}
+
+/* 44px tall hit area around the 36px field */
+.lists-search-field::before {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
+}
+
+.lists-search-field svg.icon {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.3;
+}
+
+.lists-search-input {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--label);
+  font-size: 17px;
+  line-height: 22px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.lists-search-input::placeholder {
+  color: var(--label-2);
+}
+
+.lists-search-input::-webkit-search-cancel-button,
+.lists-search-input::-webkit-search-decoration,
+.lists-search-input::-webkit-search-results-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.lists-clear {
+  position: absolute;
+  top: -4px;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms linear;
+}
+
+.lists-search.has-text .lists-clear {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lists-clear-dot {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--label-3);
+  color: var(--bg);
+}
+
+.lists-clear-dot svg {
+  width: 10px;
+  height: 10px;
+  stroke-width: 3.6;
+}
+
+.lists-clear:active .lists-clear-dot {
+  opacity: 0.5;
+}
+
+/* ---------- Rows ---------- */
+.lists-row {
+  min-height: 64px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.lists-row .row-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+}
+
+.lists-row .row-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.lists-section .row.with-icon + .row::before {
+  left: 64px;
+}
+
+.lists-row .row-title,
+.lists-row .row-subtitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+}
+
+.lists-row .row-title {
+  font-weight: 600;
+}
+
+.lists-trail {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lists-trail .badge {
+  font-variant-numeric: tabular-nums;
+}
+
+.lists-count {
+  text-align: center;
+  padding-top: 10px;
+}
+
+/* ---------- No results / empty ---------- */
+.lists-noresults {
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.lists-noresults-title {
+  font-size: 20px;
+  line-height: 25px;
+  font-weight: 700;
+}
+
+.lists-noresults-text {
+  margin: 6px auto 0;
+  max-width: 300px;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.lists-empty {
+  padding-top: 72px;
+}
+
+/* The keyboard covers the tab bar on iOS: do not float it above the keys. */
+html.kb-open .lists-screen .tabbar {
+  visibility: hidden;
+}
+
+.lists-hit {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Source of the list on its own line under the counts. */
+.lists-source {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  line-height: 18px;
+}

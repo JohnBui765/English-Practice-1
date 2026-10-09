@@ -1,0 +1,13 @@
+{
+  "name": "english-vocab-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vocab Studio — iPhone-first PWA for learning English vocabulary in context.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/unit/*.test.js",
+    "serve": "node tools/serve.mjs",
+    "e2e": "node tests/e2e/flows.mjs"
+  },
+  "license": "MIT"
+}

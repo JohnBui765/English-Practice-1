@@ -1,0 +1,301 @@
+/* Today tab */
+
+.today {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.today .section {
+  margin: 8px 0 0;
+}
+
+/* Review hero */
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+}
+
+.review-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.review-badge {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-fill);
+  background: linear-gradient(145deg, var(--orange-2), var(--orange));
+}
+
+.review-badge.green {
+  background: linear-gradient(145deg, var(--green-2), var(--green));
+}
+
+.review-count {
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.review-title {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.review-sub {
+  margin-top: 2px;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+/* Resume */
+.resume {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  box-shadow: inset 0 0 0 1.5px var(--accent-tint), var(--shadow-card);
+}
+
+.resume-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.resume-icon,
+.install-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-fill);
+}
+
+.resume-title,
+.install-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.resume-sub,
+.install-sub {
+  margin-top: 2px;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.resume-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.resume-actions .btn {
+  flex: 1;
+}
+
+/* Stats */
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.stat-tile {
+  padding: 14px 12px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.stat-icon {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.stat-label {
+  margin-top: 1px;
+  color: var(--label-2);
+  font-size: 13px;
+}
+
+.today-add {
+  margin-top: 4px;
+}
+
+/* Install hint */
+.install-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 8px 14px 14px;
+}
+
+.install-icon {
+  background: var(--blue);
+}
+
+.install-text {
+  flex: 1;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+/* Storage warning (IndexedDB unavailable) */
+.storage-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  box-shadow: inset 0 0 0 1.5px var(--red-tint), var(--shadow-card);
+}
+
+.storage-warning-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-fill);
+  background: var(--red-fill);
+}
+
+.storage-warning-text {
+  flex: 1;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.storage-warning-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.storage-warning-sub {
+  margin-top: 2px;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.install-close {
+  margin: -8px 0 -8px -4px;
+  color: var(--label-3);
+}
+
+/* Onboarding */
+/* Sized so both buttons sit above the tab bar on an iPhone SE. */
+.onboarding {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 0 0 16px;
+}
+
+.onb-logo {
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.onb-title {
+  margin: 4px 0 0;
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 700;
+}
+
+.onb-text {
+  margin: 0 8px 8px;
+  color: var(--label-2);
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.onb-steps {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.onb-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.onb-step-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-fill);
+}
+
+.onb-step-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.onb-step-sub {
+  margin-top: 2px;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+@media (max-height: 700px) {
+  .onb-logo {
+    display: none;
+  }
+}
+
+/* Recent lists: the same 36px tiles as the Lists tab. */
+.today .row-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+}
+
+.today .row-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.today .row.with-icon + .row::before,
+.today .row + .row.with-icon::before {
+  left: 64px;
+}

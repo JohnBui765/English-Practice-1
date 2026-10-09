@@ -1,0 +1,250 @@
+/* Practice mode "Meaning → Word" — js/screens/practice/meaning.js */
+
+.mn-card {
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.mn-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 22px;
+}
+
+.mn-caption {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--label-2);
+}
+
+/* Meanings (Vietnamese) */
+.mn-sense,
+.mn-senses {
+  margin: 12px 0 0;
+  font-size: 20px;
+  line-height: 28px;
+  color: var(--label);
+  overflow-wrap: break-word;
+}
+
+.mn-none {
+  color: var(--label-2);
+  font-size: 17px;
+}
+
+.mn-senses {
+  padding: 0;
+  list-style: none;
+}
+
+.mn-senses li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.mn-senses li + li {
+  margin-top: 10px;
+}
+
+.mn-num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+  border-radius: 12px;
+  background: var(--accent-tint);
+  color: var(--accent-on-tint);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.mn-text {
+  min-width: 0;
+}
+
+@keyframes mn-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+/* Hints */
+.mn-hints {
+  margin-top: 16px;
+}
+
+.mn-hint-btn {
+  gap: 6px;
+  padding: 0 14px 0 12px;
+}
+
+.mn-hint-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mn-hint-btn::after {
+  /* 44pt hit area */
+  content: '';
+  position: absolute;
+  inset: -5px -2px;
+}
+
+.mn-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  background: var(--orange-tint);
+  animation: mn-in 260ms var(--ease-out);
+}
+
+.mn-hint-btn[hidden] + .mn-callout {
+  margin-top: 0;
+}
+
+.mn-callout > .icon {
+  margin-top: 3px;
+  color: var(--orange);
+}
+
+.mn-callout-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.mn-callout-body > * + * {
+  margin-top: 8px;
+}
+
+.mn-callout-body > :last-child {
+  animation: mn-in 260ms var(--ease-out);
+}
+
+/* "a _ _ _ _ _" */
+.mn-pattern {
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 600;
+  color: var(--label);
+}
+
+.mn-pword {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 5px;
+  margin-right: 10px;
+  white-space: nowrap;
+}
+
+.mn-slot {
+  display: inline-block;
+  width: 0.62em;
+  height: 24px;
+  border-bottom: 2px solid var(--label-3);
+  text-align: center;
+}
+
+.mn-slot.first {
+  border-bottom-color: var(--orange);
+}
+
+.mn-sep {
+  display: inline-block;
+  min-width: 0.3em;
+  text-align: center;
+  color: var(--label-2);
+}
+
+.mn-clue {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  color: var(--label);
+}
+
+.mn-clue-blank {
+  display: inline-block;
+  width: 3em;
+  height: 1em;
+  margin: 0 2px;
+  border-bottom: 2px solid var(--label-3);
+  vertical-align: baseline;
+}
+
+.mn-clue-label {
+  color: var(--label-2);
+}
+
+/* Reveal after checking */
+.mn-reveal {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--separator);
+  animation: mn-in 280ms var(--ease-out);
+}
+
+.mn-answer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mn-answer-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.mn-word {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.mn-ipa {
+  margin-top: 2px;
+}
+
+.mn-speak {
+  flex: none;
+  margin-right: -6px;
+}
+
+.mn-syn {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 20px;
+}
+
+/* Typed answer */
+.mn-field {
+  margin-top: 16px;
+}
+
+@media (max-width: 360px) {
+  .mn-card {
+    padding: 18px 16px;
+  }
+
+  .mn-sense,
+  .mn-senses {
+    font-size: 18px;
+    line-height: 25px;
+  }
+}

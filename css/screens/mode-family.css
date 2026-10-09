@@ -1,0 +1,183 @@
+/* Word families (js/screens/practice/family.js) */
+
+.fam-hero {
+  position: relative;
+  padding: 16px 64px 16px 16px;
+}
+
+.fam-caption {
+  color: var(--label-2);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.fam-hero-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin-top: 6px;
+}
+
+.fam-hero-word {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.fam-hero-pos {
+  color: var(--label-2);
+  font-size: 15px;
+  font-style: italic;
+}
+
+.fam-hero-ipa {
+  margin-top: 2px;
+}
+
+.fam-hero-def {
+  margin: 8px 0 0;
+  color: var(--label);
+  font-size: 15px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.fam-hero-say {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.fam-section {
+  margin: 22px 16px 10px;
+  color: var(--label-2);
+  font-size: 13px;
+  line-height: 18px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.fam-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Fixed height: the speaker that appears after checking never moves the field. */
+.fam-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 32px;
+  margin-bottom: 6px;
+  padding: 0 2px 0 4px;
+}
+
+.fam-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fam-label .badge {
+  flex: none;
+}
+
+.fam-label-extra {
+  min-width: 0;
+  color: var(--label-2);
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fam-say {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--accent-tint);
+  animation: fam-pop 260ms var(--ease-out) both;
+}
+
+.fam-say::after {
+  /* 44pt hit area */
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+.fam-say svg {
+  width: 18px;
+  height: 18px;
+}
+
+.fam-field::placeholder {
+  font-size: 17px;
+}
+
+.fam-field.hinted::placeholder {
+  letter-spacing: 0.02em;
+  color: var(--label-2);
+}
+
+.fam-reveal {
+  padding: 8px 4px 0;
+  animation: fam-in 280ms var(--ease-out) both;
+}
+
+.fam-fix {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green-text);
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.fam-fix svg {
+  stroke-width: 2.4;
+}
+
+.fam-example,
+.fam-def {
+  margin: 4px 0 0;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.fam-example {
+  font-style: italic;
+}
+
+.fam-fix + .fam-example,
+.fam-fix + .fam-def {
+  margin-top: 6px;
+}
+
+@keyframes fam-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+@keyframes fam-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}

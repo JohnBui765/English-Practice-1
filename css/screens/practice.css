@@ -1,0 +1,310 @@
+/* Practice screen chrome + results. Mode-specific styles: css/screens/mode-*.css */
+
+.screen.practice {
+  background: var(--bg);
+}
+
+.practice-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(var(--safe-top) + 6px) calc(var(--gutter) + var(--safe-right)) 8px calc(10px + var(--safe-left));
+}
+
+.practice-top .icon-btn {
+  width: 36px;
+  height: 36px;
+  position: relative;
+}
+
+.practice-top .icon-btn::after {
+  /* keep a 44pt hit area */
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+
+.practice-top .icon-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.6;
+}
+
+.pt-progress {
+  flex: 1;
+}
+
+.pt-progress .progress {
+  height: 8px;
+  border-radius: 4px;
+}
+
+.pt-progress .progress-fill {
+  border-radius: 4px;
+  background: var(--green);
+}
+
+.pt-count {
+  min-width: 44px;
+  text-align: right;
+  color: var(--label-2);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.practice-scroll {
+  position: relative;
+}
+
+.practice-stage {
+  position: relative;
+  max-width: 640px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 12px var(--gutter) 24px;
+}
+
+.practice-card {
+  position: relative;
+  will-change: transform, opacity;
+}
+
+.practice-card.leaving {
+  position: absolute;
+  top: 12px;
+  left: var(--gutter);
+  right: var(--gutter);
+  pointer-events: none;
+}
+
+.practice-card.checked input,
+.practice-card.checked textarea {
+  caret-color: transparent;
+}
+
+.retry-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--orange-tint);
+  color: var(--orange-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Footer: Check → feedback → Continue */
+.practice-footer {
+  flex: none;
+  position: relative;
+  padding: 12px calc(var(--gutter) + var(--safe-right)) calc(12px + var(--safe-bottom)) calc(var(--gutter) + var(--safe-left));
+  background: var(--bg);
+  transition: background-color 220ms linear;
+}
+
+html.kb-open .practice-footer {
+  padding-bottom: 10px;
+}
+
+.practice-footer[data-state='right'] {
+  background: var(--green-tint);
+}
+
+.practice-footer[data-state='wrong'] {
+  background: var(--red-tint);
+}
+
+.practice-footer[data-state='close'] {
+  background: var(--orange-tint);
+}
+
+.pf-feedback {
+  display: none;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 640px;
+  margin: 0 auto 12px;
+  animation: pf-in 260ms var(--ease-out);
+}
+
+.practice-footer[data-state='right'] .pf-feedback,
+.practice-footer[data-state='close'] .pf-feedback,
+.practice-footer[data-state='wrong'] .pf-feedback {
+  display: flex;
+}
+
+.practice-footer[data-state='right'] .pf-icon,
+.practice-footer[data-state='right'] .pf-title {
+  color: var(--green-text);
+}
+
+.practice-footer[data-state='close'] .pf-icon,
+.practice-footer[data-state='close'] .pf-title {
+  color: var(--orange-text);
+}
+
+.practice-footer[data-state='wrong'] .pf-icon,
+.practice-footer[data-state='wrong'] .pf-title {
+  color: var(--red-text);
+}
+
+.pf-icon svg {
+  stroke-width: 2.4;
+}
+
+.pf-text {
+  min-width: 0;
+}
+
+.pf-title {
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 700;
+}
+
+/* Two lines at most: the card has room for anything longer. */
+.pf-detail {
+  margin-top: 2px;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--label);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.pf-detail[hidden] {
+  display: none;
+}
+
+@keyframes pf-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+}
+
+.pf-actions {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* Just after the footer changed: the second tap of a double tap must not
+   land on the button that took the first one's place (practice.js). */
+.practice-footer.settling .pf-actions {
+  pointer-events: none;
+}
+
+.pf-actions > .btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.pf-timer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--on-fill);
+  opacity: 0.55;
+  transform-origin: left center;
+  transform: scaleX(0);
+  pointer-events: none;
+}
+
+.pf-grade {
+  display: none;
+  gap: 10px;
+}
+
+.pf-grade .btn {
+  flex: 1;
+}
+
+.practice-footer[data-state='grade'] .pf-grade {
+  display: flex;
+}
+
+.practice-footer[data-state='grade'] .pf-actions > .btn {
+  display: none;
+}
+
+/* Results */
+.results-screen .scroll-inner {
+  padding-top: calc(var(--safe-top) + 24px);
+}
+
+.res-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px 0 8px;
+  animation: pf-in 420ms var(--ease-out);
+}
+
+.res-title {
+  margin: 18px 0 4px;
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+}
+
+.res-sub {
+  margin: 0;
+  color: var(--label-2);
+  font-size: 15px;
+}
+
+.res-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 24px 0 12px;
+}
+
+.res-stat {
+  padding: 14px 8px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  text-align: center;
+  box-shadow: var(--shadow-card);
+}
+
+.res-stat-value {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.res-stat-label {
+  margin-top: 2px;
+  color: var(--label-2);
+  font-size: 13px;
+}
+
+.res-note {
+  margin: 4px 4px 20px;
+  color: var(--label-2);
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.results .section {
+  margin-top: 16px;
+}
+
+.results .row .icon-btn {
+  margin-right: -10px;
+}
+
+.footer-row.stacked {
+  flex-direction: column;
+}

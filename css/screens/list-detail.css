@@ -1,0 +1,508 @@
+/* List detail + word sheet */
+
+/* ---------- Sentences hero ---------- */
+.ld-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+}
+
+.ld-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ld-hero-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-fill);
+  background: var(--accent);
+}
+
+.ld-hero-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.ld-hero-title {
+  font-size: 20px;
+  line-height: 25px;
+  font-weight: 700;
+}
+
+.ld-hero-text {
+  margin: 0;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.ld-hero .btn {
+  margin-top: 4px;
+}
+
+.ld-sentences .row-title {
+  font-weight: 600;
+}
+
+.ld-missing {
+  color: var(--orange-text);
+  font-weight: 500;
+}
+
+/* ---------- Practice modes ---------- */
+.ld-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* card() renders a <button> with an inline display:block; a flex column
+   keeps the content at the top instead of the button's vertical centring. */
+.card.ld-mode {
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 14px 12px;
+}
+
+.ld-mode-inner {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'icon count'
+    'label label'
+    'text text';
+  align-content: start;
+  column-gap: 8px;
+}
+
+.ld-mode-icon {
+  grid-area: icon;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-fill);
+}
+
+.ld-mode-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.2;
+}
+
+.ld-mode-count {
+  grid-area: count;
+  justify-self: end;
+  max-width: 100%;
+  padding-top: 2px;
+  color: var(--label-2);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ld-mode-label {
+  grid-area: label;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--label);
+  text-wrap: balance;
+}
+
+.ld-mode-text {
+  grid-area: text;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label-2);
+}
+
+/* Featured (full-width) card: icon · label/text · count in one row. */
+.ld-mode.wide {
+  grid-column: 1 / -1;
+  padding: 14px 16px;
+}
+
+.ld-mode.wide .ld-mode-inner {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'icon label count'
+    'icon text count';
+  align-items: center;
+  column-gap: 14px;
+}
+
+.ld-mode.wide .ld-mode-icon {
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  border-radius: 12px;
+}
+
+.ld-mode.wide .ld-mode-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.ld-mode.wide .ld-mode-label {
+  align-self: end;
+}
+
+.ld-mode.wide .ld-mode-text {
+  align-self: start;
+}
+
+.ld-mode.wide .ld-mode-count {
+  padding: 0;
+  font-size: 15px;
+}
+
+.ld-mode.needs .ld-mode-icon,
+.ld-mode.needs .ld-mode-label,
+.ld-mode.needs .ld-mode-text {
+  opacity: 0.45;
+}
+
+.ld-mode.needs .ld-mode-count {
+  color: var(--accent);
+}
+
+/* ---------- Progress ---------- */
+.card.ld-progress-card {
+  padding: 16px;
+}
+
+.ld-stack {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--fill);
+}
+
+.ld-stack-seg {
+  flex: 0 0 0;
+  min-width: 4px;
+}
+
+.ld-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin-top: 14px;
+}
+
+.ld-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.ld-legend-item.zero {
+  color: var(--label-2);
+}
+
+.ld-legend-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.ld-legend-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.ld-legend-n {
+  font-weight: 600;
+}
+
+.ld-next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--separator);
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.ld-next.due {
+  color: var(--orange-text);
+  font-weight: 600;
+}
+
+/* ---------- Items ---------- */
+.ld-item {
+  align-items: center;
+}
+
+.ld-item-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.ld-item-word {
+  font-weight: 600;
+}
+
+.ld-item .badge,
+.ld-member .badge {
+  height: 20px;
+  padding: 0 7px;
+  font-size: 12px;
+}
+
+.ld-item .ipa {
+  font-size: 14px;
+}
+
+.ld-item .row-subtitle {
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.ld-speak {
+  flex: none;
+  margin: -6px -10px -6px 0;
+}
+
+.ld-speak svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Pressing the speaker should not highlight the whole row. */
+.ld-item:has(.ld-speak:active) {
+  background: transparent;
+}
+
+.ld-family-words {
+  font-weight: 600;
+}
+
+.ld-passage-row .row-title {
+  font-size: 16px;
+  line-height: 21px;
+}
+
+/* ---------- Word sheet ---------- */
+.ld-ws-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 4px 22px;
+}
+
+.ld-ws-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ld-ws-word {
+  font-size: 34px;
+  line-height: 40px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+
+.ld-ws-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 4px;
+}
+
+.ld-ws-meta .ipa {
+  font-size: 17px;
+}
+
+.icon-btn.ld-ws-speak {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  margin-top: 2px;
+}
+
+.ld-sense {
+  align-items: flex-start;
+}
+
+.ld-sense-n {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 0;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-tint);
+  color: var(--accent-on-tint);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ld-sense .row-main,
+.ld-example .row-main {
+  line-height: 22px;
+}
+
+.ld-example .row-main {
+  font-style: italic;
+}
+
+.ld-ws-status {
+  gap: 10px;
+}
+
+.ld-ws-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.ld-ws-status .row-detail {
+  font-size: 15px;
+}
+
+.ld-sentence {
+  align-items: flex-start;
+}
+
+.ld-sentence .row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ld-sentence-text {
+  font-size: 17px;
+  line-height: 23px;
+  overflow-wrap: anywhere;
+}
+
+.ld-answer {
+  color: var(--accent-on-tint);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.ld-sentence-vi {
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+/* Same caption style as .sn-sense on the Sentences screen. */
+.ld-sentence-meta {
+  color: var(--label-2);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+/* The big word heads the sheet; the bar title fades in once it scrolls away. */
+.ld-word-sheet .sheet-title {
+  opacity: 0;
+  transition: opacity 180ms linear;
+}
+
+.ld-word-sheet.scrolled .sheet-title {
+  opacity: 1;
+}
+
+.textarea.ld-context {
+  min-height: 96px;
+  font-size: 17px;
+}
+
+.ld-ws > .btn {
+  margin-top: -12px;
+  margin-bottom: 8px;
+}
+
+.ld-member {
+  align-items: flex-start;
+}
+
+.ld-member .row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ld-member-def {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.ld-member-ex {
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+  font-style: italic;
+}
+
+.ld-member .ld-speak {
+  margin-top: -4px;
+}
+
+.card.ld-passage {
+  margin-bottom: 16px;
+  font-size: 18px;
+  line-height: 27px;
+  white-space: pre-line;
+}
+
+/* ---------- Paused session ---------- */
+.ld-resume .row-title {
+  font-weight: 600;
+}
+
+.ld-resume-go {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 8px;
+  color: var(--accent);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.ld-resume-go svg {
+  stroke-width: 2.4;
+}

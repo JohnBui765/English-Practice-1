@@ -1,0 +1,218 @@
+/* New List / Edit List modal */
+
+.import-screen .scroll-inner {
+  padding-top: 12px;
+}
+
+.imp-paste {
+  margin: 0 0 24px;
+}
+
+/* ---------- Text box ---------- */
+.textarea.imp-text {
+  min-height: 160px;
+  height: clamp(160px, 28vh, 260px);
+  padding: 12px 16px;
+  font-size: 16px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Type ---------- */
+.imp-kind .segmented {
+  margin: 0;
+}
+
+.imp-detected {
+  min-height: 18px;
+  padding: 8px 16px 0;
+  color: var(--label-2);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* ---------- Title / source ---------- */
+.imp-field-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding-left: 16px;
+  cursor: text;
+}
+
+.imp-field-row + .imp-field-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 16px;
+  height: 0.5px;
+  background: var(--separator);
+}
+
+.imp-field-label {
+  flex: none;
+  width: 64px;
+  font-size: 17px;
+  color: var(--label);
+}
+
+.imp-field-row .field.imp-input {
+  flex: 1;
+  min-width: 0;
+  padding-left: 0;
+  padding-right: 16px;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Warnings ---------- */
+.imp-warn .section-header {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.imp-warn-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--orange-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.imp-warn-header svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.4;
+}
+
+.imp-warn-row {
+  align-items: flex-start;
+}
+
+.imp-warn-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.imp-warn-line {
+  color: var(--orange-text);
+  font-weight: 600;
+}
+
+/* ---------- Preview ---------- */
+.imp-item {
+  align-items: flex-start;
+}
+
+/* the item number hangs in its own column */
+.imp-item .row-main {
+  position: relative;
+  padding-left: 28px;
+}
+
+.imp-item-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.imp-n {
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 22px;
+  text-align: right;
+  color: var(--label-2);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.imp-word {
+  font-weight: 600;
+}
+
+.imp-item .badge {
+  height: 20px;
+  padding: 0 7px;
+  font-size: 12px;
+}
+
+.imp-item .ipa {
+  font-size: 14px;
+}
+
+.imp-item .row-subtitle {
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.imp-syn {
+  color: var(--accent);
+}
+
+.imp-members {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.imp-pos,
+.imp-dot {
+  color: var(--label-2);
+  font-weight: 400;
+}
+
+.imp-pos {
+  font-size: 15px;
+}
+
+.imp-passage {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  line-height: 21px;
+}
+
+/* ---------- Empty preview hint ---------- */
+.imp-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 24px 8px;
+  text-align: center;
+}
+
+.imp-hint-icon {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--label-2);
+  background: var(--fill);
+}
+
+.imp-hint-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.imp-hint-text {
+  max-width: 300px;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+}
