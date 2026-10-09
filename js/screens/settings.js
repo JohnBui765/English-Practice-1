@@ -2,7 +2,7 @@
 import { h } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { screen, section, row, segmented, toggle, slider, sheet, actionSheet, confirm, toast, button } from '../ui/components.js';
-import { englishVoices, speak, supported as speechSupported } from '../ui/speech.js';
+import { englishVoices, speak, supported as speechSupported, voiceQuality, voiceName, voiceAccent, currentVoice, QUALITY_LABEL } from '../ui/speech.js';
 import { resetTo } from '../ui/router.js';
 import * as store from '../data/store.js';
 
@@ -174,40 +174,42 @@ async function voiceSheet(onPicked) {
     s.close();
   };
   const preview = (v) => speak('This is how your words will sound.', { voiceURI: v ? v.voiceURI : '', rate: store.settings().speechRate });
+  const describe = (v) => `${QUALITY_LABEL[voiceQuality(v)]} · ${voiceAccent(v)}`;
+  const auto = currentVoice('');
   const voiceRow = (v) =>
     row({
-      title: v ? v.name.replace(/\s*\(.*?\)\s*/g, ' ').trim() : 'Automatic (best available)',
-      subtitle: v ? `${v.lang.replace('_', '-')}${/enhanced|premium/i.test(v.name) ? ' · Enhanced' : ''}` : 'Picks the clearest English voice on this phone',
+      title: v ? voiceName(v) : 'Automatic',
+      subtitle: v ? describe(v) : auto ? `Best on this iPhone: ${voiceName(auto)} · ${QUALITY_LABEL[voiceQuality(auto)]}` : 'Picks the clearest English voice',
       accessory: (v ? v.voiceURI : '') === current ? h('span', { class: 'check-mark' }, icon('check')) : h('span', { class: 'check-mark' }),
       onTap: () => {
         preview(v);
         pick(v ? v.voiceURI : '');
       },
     });
+  const best = voices.filter((v) => voiceQuality(v) === 'premium' || voiceQuality(v) === 'enhanced');
+  const standard = voices.filter((v) => voiceQuality(v) === 'default');
+  const howTo = 'Download one in iPhone Settings › Accessibility › Spoken Content › Voices › English (pick a voice marked Premium or Enhanced). Then close Vocab Studio completely — swipe it away in the app switcher — and open it again so it can see the new voice.';
   s = sheet({
     title: 'Voice',
     content: [
       section({ children: [voiceRow(null)] }),
-      voices.length
-        ? section({ header: 'English voices', footer: 'Tip: download “Enhanced” voices in iPhone Settings › Accessibility › Spoken Content › Voices › English.', children: voices.map(voiceRow) })
-        : h('p', { class: 'muted small', style: { padding: '0 16px' } }, 'No English voices were found on this device.'),
+      best.length
+        ? section({ header: 'Best quality', footer: 'Premium and Enhanced voices sound much more natural and work offline.', children: best.map(voiceRow) })
+        : section({ header: 'Best quality', children: [h('div', { class: 'row voice-empty' }, h('span', { class: 'row-main' }, h('span', { class: 'row-title', style: { display: 'block' } }, 'No Premium or Enhanced voices found'), h('span', { class: 'row-subtitle', style: { display: 'block' } }, howTo)))] }),
+      standard.length ? section({ header: 'Standard', footer: best.length ? 'Standard voices are the small built-in ones and sound robotic.' : null, children: standard.map(voiceRow) }) : null,
+      !voices.length ? h('p', { class: 'muted small', style: { padding: '0 16px' } }, 'No English voices were found on this device.') : null,
     ],
   });
 }
 
 export default async function create() {
   const st = store.settings();
-  let voiceName = 'Automatic';
-
-  const voiceDetail = h('span', null, voiceName);
+  const voiceDetail = h('span', null, 'Automatic');
   const refreshVoiceName = async () => {
     const uri = store.settings().voiceURI;
-    if (!uri) {
-      voiceDetail.textContent = 'Automatic';
-      return;
-    }
-    const v = (await englishVoices()).find((x) => x.voiceURI === uri);
-    voiceDetail.textContent = v ? v.name.replace(/\s*\(.*?\)\s*/g, ' ').trim() : 'Automatic';
+    await englishVoices();
+    const v = currentVoice(uri);
+    voiceDetail.textContent = v ? `${uri ? '' : 'Auto · '}${voiceName(v)}${voiceQuality(v) === 'default' ? '' : ` (${QUALITY_LABEL[voiceQuality(v)]})`}` : 'Automatic';
   };
   refreshVoiceName();
 

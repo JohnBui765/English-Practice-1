@@ -6,6 +6,10 @@ export const supported = typeof window !== 'undefined' && 'speechSynthesis' in w
 
 let cachedVoices = [];
 
+if (supported && window.speechSynthesis.addEventListener) {
+  window.speechSynthesis.addEventListener('voiceschanged', () => loadVoices());
+}
+
 function loadVoices() {
   if (!supported) return [];
   const all = window.speechSynthesis.getVoices() || [];
@@ -25,31 +29,89 @@ export function englishVoices() {
   });
 }
 
-const PREFERRED = ['Samantha', 'Daniel', 'Karen', 'Moira', 'Serena', 'Arthur', 'Ava', 'Allison', 'Tom', 'Alex', 'Google US English', 'Google UK English'];
+// Apple ships several qualities of the same voice, often with the SAME name
+// ("Samantha"): the quality is only in the voice id, e.g.
+//   com.apple.voice.compact.en-US.Samantha    (basic, robotic)
+//   com.apple.voice.enhanced.en-US.Samantha   (downloaded "Enhanced")
+//   com.apple.voice.premium.en-US.Zoe         (downloaded "Premium")
+//   com.apple.ttsbundle.Samantha-premium      (older iOS name for Enhanced)
+// so quality must be read from voiceURI as well as the name.
+const NOVELTY = /^(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|fred|junior|ralph|kathy|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley)\b/i;
+
+export const QUALITY_RANK = { premium: 3, enhanced: 2, default: 1, novelty: 0 };
+export const QUALITY_LABEL = { premium: 'Premium', enhanced: 'Enhanced', default: 'Standard', novelty: 'Novelty' };
+
+export function voiceQuality(v) {
+  const uri = String(v?.voiceURI || '').toLowerCase();
+  const name = String(v?.name || '');
+  const both = `${uri} ${name.toLowerCase()}`;
+  if (uri.includes('eloquence') || NOVELTY.test(name)) return 'novelty';
+  if (/ttsbundle\..*-premium/.test(uri)) return 'enhanced';
+  if (/\bpremium\b|\.premium\.|neural|\(natural\)|\bnatural\b/.test(both)) return 'premium';
+  if (/enhanced|siri/.test(both)) return 'enhanced';
+  return 'default';
+}
+
+// "Samantha (Enhanced)" → "Samantha"
+export function voiceName(v) {
+  return String(v?.name || '').replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim() || 'Voice';
+}
+
+const ACCENTS = { US: 'American', GB: 'British', AU: 'Australian', IE: 'Irish', ZA: 'South African', IN: 'Indian', NZ: 'New Zealand', CA: 'Canadian', SG: 'Singaporean' };
+
+export function voiceAccent(v) {
+  const region = String(v?.lang || '').split(/[-_]/)[1]?.toUpperCase();
+  return ACCENTS[region] || (region ? `English (${region})` : 'English');
+}
+
+const PREFERRED = ['Ava', 'Zoe', 'Evan', 'Nathan', 'Samantha', 'Allison', 'Susan', 'Tom', 'Daniel', 'Serena', 'Arthur', 'Kate', 'Karen', 'Moira', 'Alex', 'Google US English', 'Google UK English'];
 
 function score(v) {
-  let s = 0;
-  if (/enhanced|premium|neural|natural/i.test(v.name)) s += 40;
-  const pref = PREFERRED.findIndex((n) => v.name.startsWith(n));
+  let s = QUALITY_RANK[voiceQuality(v)] * 100;
+  const pref = PREFERRED.findIndex((n) => voiceName(v).startsWith(n));
   if (pref >= 0) s += 30 - pref;
   if (/en[-_]US/i.test(v.lang)) s += 8;
   else if (/en[-_]GB/i.test(v.lang)) s += 6;
-  if (v.localService) s += 5;
-  if (/eloquence|bad news|bells|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|albert|bahh|boing|fred|junior|ralph|kathy|grandma|grandpa|rocko|shelley|sandy|flo|eddy|reed/i.test(v.name)) s -= 100;
+  if (v.localService) s += 2;
   return s;
 }
 
+// Best first; novelty voices are left out; duplicates (same id) removed.
+export function rankVoices(voices) {
+  const seen = new Set();
+  return voices
+    .filter((v) => voiceQuality(v) !== 'novelty' && !seen.has(v.voiceURI) && seen.add(v.voiceURI))
+    .sort((a, b) => score(b) - score(a));
+}
+
 function sortVoices(voices) {
-  return voices.slice().sort((a, b) => score(b) - score(a));
+  return rankVoices(voices);
+}
+
+// The voice to use: the saved one, upgraded to a better-quality copy of the
+// same voice when one has been downloaded since; otherwise the best voice.
+export function bestVoice(voices, voiceURI = '') {
+  const ranked = rankVoices(voices);
+  if (voiceURI) {
+    const saved = voices.find((v) => v.voiceURI === voiceURI);
+    if (saved) {
+      const better = ranked.find(
+        (v) => voiceName(v) === voiceName(saved) && v.lang === saved.lang && QUALITY_RANK[voiceQuality(v)] > QUALITY_RANK[voiceQuality(saved)],
+      );
+      return better || saved;
+    }
+  }
+  return ranked[0] || null;
 }
 
 function pickVoice(voiceURI) {
   const voices = cachedVoices.length ? cachedVoices : loadVoices();
-  if (voiceURI) {
-    const exact = voices.find((v) => v.voiceURI === voiceURI);
-    if (exact) return exact;
-  }
-  return sortVoices(voices)[0] || null;
+  return bestVoice(voices, voiceURI);
+}
+
+// The voice that speak() will use with these settings (for the Settings screen).
+export function currentVoice(voiceURI = '') {
+  return pickVoice(voiceURI);
 }
 
 export function speak(text, { rate = 0.9, voiceURI = '', lang = 'en-US', onEnd } = {}) {

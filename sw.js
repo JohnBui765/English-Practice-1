@@ -1,7 +1,7 @@
 // Offline support. The precache list and VERSION are rewritten by
 // `node tools/update-sw.mjs` — run it after changing any app file so installed
 // apps pick up the new version.
-const VERSION = 'f40dc26816';
+const VERSION = '34ca91d48b';
 const PRECACHE = [
   './',
   'css/app.css',

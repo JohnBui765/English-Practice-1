@@ -65,3 +65,7 @@
 .settings-warn {
   color: var(--red);
 }
+
+.voice-empty .row-subtitle {
+  margin-top: 4px;
+}
