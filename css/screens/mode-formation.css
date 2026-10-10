@@ -1,0 +1,329 @@
+/* Practice mode "Word formation" — js/screens/practice/formation.js.
+   The sentence and blank match "In context" (mode-cloze.css). */
+
+.wf-card {
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.wf-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  min-height: 28px;
+}
+
+.wf-caption {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--label-2);
+}
+
+/* The root word, in capitals like an exam's word formation task. */
+.wf-root {
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--purple-tint);
+  color: var(--purple-text);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+/* Sentence with the blank */
+.wf-sentence {
+  margin: 12px 0 0;
+  font-size: 22px;
+  line-height: 31px;
+  letter-spacing: -0.015em;
+  color: var(--label);
+  overflow-wrap: break-word;
+}
+
+.wf-blank {
+  position: relative;
+  display: inline-block;
+  box-sizing: border-box;
+  min-width: var(--wf-w, 5em);
+  max-width: 100%;
+  min-height: 1.4em;
+  margin: 0 0.06em;
+  padding: 0 0.3em;
+  border-bottom: 2px dashed var(--accent);
+  border-radius: 7px 7px 3px 3px;
+  background: var(--accent-tint);
+  color: var(--accent-on-tint);
+  font-weight: 600;
+  line-height: calc(1.4em - 2px);
+  letter-spacing: -0.01em;
+  text-align: center;
+  /* A long phrase wraps inside the pill instead of running off the card. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: baseline;
+}
+
+.wf-fill {
+  display: inline-block;
+  animation: wf-pop 220ms var(--ease-out);
+}
+
+.wf-blank.is-right {
+  border-bottom: 2px solid var(--green);
+  background: var(--green-tint);
+  color: var(--label);
+}
+
+/* Wrong: the learner's answer struck through, then the answer. Each part is
+   its own small pill so the pair can wrap on narrow screens. */
+.wf-blank.is-wrong {
+  display: inline;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.wf-was,
+.wf-blank.is-wrong .wf-ans {
+  display: inline-block;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-height: 1.4em;
+  padding: 0 0.3em;
+  border-radius: 7px 7px 3px 3px;
+  line-height: calc(1.4em - 2px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.wf-was {
+  border-bottom: 2px solid var(--red);
+  background: var(--red-tint);
+  color: var(--red-text);
+  font-weight: 500;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+/* A near miss (one-letter slip) is orange, like the footer banner. */
+.wf-blank.is-close .wf-was {
+  border-bottom-color: var(--orange);
+  background: var(--orange-tint);
+  color: var(--orange-text);
+}
+
+.wf-blank.is-wrong .wf-ans {
+  border-bottom: 2px solid var(--green);
+  background: var(--green-tint);
+  color: var(--label);
+}
+
+@keyframes wf-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes wf-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+/* Hints */
+.wf-hints {
+  margin-top: 16px;
+}
+
+.wf-hint-btn {
+  gap: 6px;
+  padding: 0 14px 0 12px;
+}
+
+.wf-hint-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.wf-hint-btn::after {
+  /* 44pt hit area */
+  content: '';
+  position: absolute;
+  inset: -5px -2px;
+}
+
+.wf-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  background: var(--orange-tint);
+  animation: wf-in 260ms var(--ease-out);
+}
+
+.wf-hint-btn[hidden] + .wf-callout {
+  margin-top: 0;
+}
+
+.wf-callout > .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--orange);
+}
+
+.wf-callout-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  line-height: 22px;
+  color: var(--label);
+  overflow-wrap: anywhere;
+}
+
+.wf-callout-text > * {
+  margin: 0;
+}
+
+.wf-callout-text > * + * {
+  margin-top: 4px;
+}
+
+.wf-callout-strong {
+  font-weight: 600;
+}
+
+.wf-callout-text > .wf-callout-label {
+  margin-top: 10px;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.wf-callout-label:first-child {
+  margin-top: 0;
+}
+
+/* The family's forms: tap one to put it in the field. The row also uses the
+   space under the bulb (icon 18 + gap 10). 36pt chips with a 44pt hit area;
+   the 8pt row gap keeps the hit areas from overlapping. */
+.wf-callout-text > .wf-forms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 2px -28px;
+}
+
+.wf-callout-text > .wf-forms + * {
+  margin-top: 10px;
+}
+
+.wf-form.chip {
+  position: relative;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 0 13px;
+  border-radius: 18px;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.wf-form.chip::after {
+  content: '';
+  position: absolute;
+  inset: -4px -2px;
+}
+
+/* Typed answer */
+.wf-field {
+  margin-top: 16px;
+}
+
+/* Reveal after checking */
+.wf-reveal {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--separator);
+  animation: wf-in 280ms var(--ease-out);
+}
+
+.wf-vi {
+  margin: 0 0 6px;
+  font-size: 16px;
+  line-height: 22px;
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+}
+
+.wf-word {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-bottom: -6px;
+}
+
+/* The padding only shows when the word, pos and IPA wrap to two lines
+   (one line sits centred in the 44px row): it keeps the translation above
+   and the meaning below from touching them. */
+.wf-word-main {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+}
+
+.wf-word-text {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.wf-word-pos {
+  color: var(--label-2);
+  font-size: 15px;
+  font-style: italic;
+}
+
+.wf-speak {
+  flex: none;
+  margin-right: -8px;
+}
+
+.wf-meaning {
+  margin: 8px 0 0;
+  font-size: 16px;
+  line-height: 22px;
+  color: var(--label);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 360px) {
+  .wf-card {
+    padding: 18px 16px;
+  }
+
+  .wf-sentence {
+    font-size: 20px;
+    line-height: 28px;
+  }
+}

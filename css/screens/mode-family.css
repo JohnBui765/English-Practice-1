@@ -163,6 +163,33 @@
   font-style: italic;
 }
 
+/* The member's form in its example (Claude's [[form]], or found in a
+   written-out example). */
+.fam-form {
+  color: var(--label);
+  font-weight: 600;
+}
+
+.fam-example-vi {
+  margin: 4px 0 0;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+/* After checking: the model's example under its meaning, full width (the
+   speaker sits above it). */
+.fam-hero-example {
+  margin: 12px -48px 0 0;
+  padding: 10px 0 0;
+  border-top: 0.5px solid var(--separator);
+}
+
+.fam-hero-example .fam-example:first-child {
+  margin-top: 0;
+}
+
 .fam-fix + .fam-example,
 .fam-fix + .fam-def {
   margin-top: 6px;

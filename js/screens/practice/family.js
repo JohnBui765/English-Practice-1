@@ -1,11 +1,13 @@
-// Word families: the first member is the model; the learner types every other
-// form (one field per member, labelled with its part of speech).
+// Word families: one member is the model (the root word the learner pasted,
+// else the first member); the learner types every other form (one field per
+// member, labelled with its part of speech).
 import { h, reducedMotion } from '../../ui/dom.js';
 import { icon } from '../../ui/icons.js';
 import { iconButton, textField, badge, posBadge } from '../../ui/components.js';
 import { posLabel } from '../../core/text.js';
 import { checkWord } from '../../core/grade.js';
 import { shuffle } from '../../core/util.js';
+import { memberBlank, memberForms, modelIndex } from '../../core/families.js';
 
 /* ---------- labels ---------- */
 
@@ -28,18 +30,29 @@ function firstWords(def) {
 }
 
 // Labels for the answer rows, in display order. Parts of speech that occur
-// once are plain ("verb"); repeated ones get a hint ("noun · person") or a
-// number ("noun 2").
+// once are plain ("verb"); repeated ones get Claude's hint ("noun · official
+// permission") when every member of that part of speech has a different one,
+// else a hint from the definition ("noun · person") or a number ("noun 2").
 export function familyLabels(members, mode = 'contextual') {
-  const count = new Map();
-  for (const m of members) count.set(m.pos || '', (count.get(m.pos || '') || 0) + 1);
+  const groups = new Map(); // pos -> members with that pos
+  for (const m of members) {
+    const key = m.pos || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  }
+  const hinted = new Set(); // parts of speech told apart by Claude's hints
+  for (const [key, group] of groups) {
+    const hints = group.map((m) => String(m.hint || '').trim().toLowerCase());
+    if (group.length > 1 && hints.every(Boolean) && new Set(hints).size === hints.length) hinted.add(key);
+  }
   const seen = new Map();
   const labels = members.map((m) => {
     const key = m.pos || '';
     const pos = posLabel(m.pos) || 'word';
-    if (count.get(key) < 2) return { pos, extra: '', numbered: false };
+    if (groups.get(key).length < 2) return { pos, extra: '', numbered: false };
     const n = (seen.get(key) || 0) + 1;
     seen.set(key, n);
+    if (hinted.has(key)) return { pos, extra: String(m.hint).trim(), numbered: false };
     if (mode === 'numbered') return { pos, extra: String(n), numbered: true, n };
     return { pos, extra: contextHint(m.definition), numbered: false, n };
   });
@@ -81,6 +94,26 @@ export function letterHint(word) {
         .join(' '),
     )
     .join('   ');
+}
+
+// A member's example with its form in bold and no [[ ]] (a written-out
+// family's example has no brackets: the form is found in the sentence).
+function exampleText(m) {
+  const parts = memberBlank(m);
+  if (parts) return [parts.before, h('strong', { class: 'fam-form' }, parts.answer), parts.after];
+  return String(m.example || '').replace(/\[\[|\]\]/g, '');
+}
+
+// Example + its translation (Claude's families), else the definition or meaning.
+function memberDetails(m, { definition = true } = {}) {
+  const out = [];
+  if (String(m.example || '').trim()) {
+    out.push(h('p', { class: 'fam-example', lang: 'en' }, exampleText(m)));
+    if (m.exampleVi) out.push(h('p', { class: 'fam-example-vi', lang: 'vi' }, m.exampleVi));
+  } else if (definition && (m.definition || m.vi)) {
+    out.push(h('p', { class: 'fam-def', lang: m.definition ? 'en' : 'vi' }, m.definition || m.vi));
+  }
+  return out;
 }
 
 /* ---------- scrolling ---------- */
@@ -130,10 +163,14 @@ function focusSoon(field) {
 export function render(card, ctx) {
   const { item, settings } = ctx;
   const members = item.members || [];
-  const model = members[0] || { word: '', pos: '', ipa: '', definition: '', example: '' };
+  const mi = modelIndex(item);
+  const model = members[mi] || { word: '', pos: '', ipa: '', definition: '', example: '' };
+  // Claude's Vietnamese meaning, else the written-out English definition,
+  // else the meaning pasted with the root (either language).
+  const modelMeaning = model.vi ? { text: model.vi, lang: 'vi' } : model.definition ? { text: model.definition, lang: 'en' } : item.rootMeaning ? { text: item.rootMeaning, lang: null } : null;
   const difficulty = settings.familyDifficulty || 'intermediate';
 
-  let order = members.slice(1);
+  let order = members.filter((_, i) => i !== mi);
   if (difficulty === 'advanced') order = shuffle(order, ctx.rng);
   const labels = familyLabels(order, settings.familyDuplicates === 'numbered' ? 'numbered' : 'contextual');
 
@@ -151,9 +188,10 @@ export function render(card, ctx) {
   };
   window.visualViewport?.addEventListener('resize', onViewport);
 
+  // "authorize / authorise" is said once, in its first spelling.
   const say = (word) => (e) => {
     e.stopPropagation();
-    ctx.speak(word);
+    ctx.speak(memberForms({ word })[0] || word);
   };
 
   const hero = h(
@@ -167,7 +205,7 @@ export function render(card, ctx) {
       model.pos ? h('span', { class: 'fam-hero-pos' }, posLabel(model.pos)) : null,
     ),
     model.ipa ? h('div', { class: 'ipa fam-hero-ipa' }, `/${model.ipa}/`) : null,
-    model.definition ? h('p', { class: 'fam-hero-def', lang: 'en' }, model.definition) : null,
+    modelMeaning ? h('p', { class: 'fam-hero-def', lang: modelMeaning.lang }, modelMeaning.text) : null,
     iconButton({ icon: 'speaker', label: `Say ${model.word}`, variant: 'filled', className: 'fam-hero-say', onTap: say(model.word) }),
   );
 
@@ -258,10 +296,12 @@ export function render(card, ctx) {
       r.head.append(iconButton({ icon: 'speaker', label: `Say ${m.word}`, className: 'fam-say', onTap: say(m.word) }));
       const extra = [];
       if (!res.correct) extra.push(h('div', { class: 'fam-fix', lang: 'en' }, icon('arrowRight', { size: 16 }), h('span', null, m.word)));
-      if (m.example) extra.push(h('p', { class: 'fam-example', lang: 'en' }, m.example));
-      else if (m.definition) extra.push(h('p', { class: 'fam-def', lang: 'en' }, m.definition));
+      extra.push(...memberDetails(m));
       if (extra.length) r.rowEl.append(h('div', { class: 'fam-reveal' }, extra));
     });
+    // The model's own example too (its meaning is already on the card).
+    const modelExample = memberDetails(model, { definition: false });
+    if (modelExample.length) hero.append(h('div', { class: 'fam-reveal fam-hero-example' }, modelExample));
     el.classList.add('fam-checked');
     const total = rows.length;
     const correct = right === total;

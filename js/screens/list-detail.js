@@ -1,16 +1,17 @@
 // One list: sentences status, practice modes, progress and every item.
 // params: { listId }
-import { h } from '../ui/dom.js';
+import { h, reducedMotion } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
-import { screen, section, row, button, card, badge, posBadge, emptyState, actionSheet, confirm, sheet, textArea, toast, hasOpenOverlay } from '../ui/components.js';
+import { screen, section, row, button, iconButton, card, badge, posBadge, emptyState, actionSheet, confirm, sheet, textArea, toast, hasOpenOverlay } from '../ui/components.js';
 import { push, pop, resetTo } from '../ui/router.js';
 import { speak } from '../ui/speech.js';
 import { keepVisible } from '../ui/viewport.js';
 import * as store from '../data/store.js';
 import { isDue, boxLabel, summary, newProgress } from '../core/srs.js';
 import { coverage, clozeParts, sentenceFromContext } from '../core/cloze.js';
-import { plural, formatDate, startOfDay, DAY } from '../core/util.js';
-import { MODES, getSnapshot, liveCards } from './practice/session.js';
+import { familyStatus, isFamilyReady, memberBlank, memberForms, modelIndex, rootsText } from '../core/families.js';
+import { plural, formatDate, startOfDay, uid, DAY } from '../core/util.js';
+import { MODES, buildCards, getSnapshot, liveCards } from './practice/session.js';
 
 const ITEM_NOUN = {
   vocab: ['word', 'words'],
@@ -57,6 +58,57 @@ function sentenceText(text) {
   return [unwrap(parts.before), h('strong', { class: 'ld-answer' }, parts.answer), unwrap(parts.after)];
 }
 
+// The word a family is known by: the pasted root, or its model member.
+function familyName(item) {
+  const root = String(item?.root ?? '').trim();
+  if (root) return root;
+  const members = item?.members || [];
+  const model = members[modelIndex(item)];
+  return model ? memberForms(model)[0] || model.word : '';
+}
+
+const familyPos = (item) => String(item?.rootPos || '').trim() || (item?.members?.[modelIndex(item)]?.pos ?? '');
+const formTotal = (items) => items.reduce((n, item) => n + (isFamilyReady(item) ? (item.members || []).length : 0), 0);
+
+// A pending family list built from a vocabulary list's words ("Make word
+// families from these words"). rawText is the one-line format, so Edit list
+// reads the same roots back.
+function familyListFrom(vocab, now = Date.now()) {
+  const seen = new Set();
+  const items = [];
+  for (const it of vocab.items || []) {
+    const word = String(it.word || '').replace(/\s+/g, ' ').trim();
+    const key = word.toLowerCase();
+    if (!word || seen.has(key)) continue;
+    seen.add(key);
+    const meaning = (it.senses || []).map((x) => String(x).trim()).filter(Boolean).join('; ');
+    items.push({ id: uid(), root: word, rootPos: it.pos || '', rootMeaning: meaning, note: '', members: [] });
+  }
+  const rawText = rootsText(items);
+  return {
+    id: uid(),
+    kind: 'family',
+    title: `${vocab.title || 'List'} · families`,
+    source: vocab.source || '',
+    rawText,
+    items,
+    sentences: [],
+    sourceListId: vocab.id,
+    createdAt: now,
+    updatedAt: now,
+    lastPracticedAt: null,
+  };
+}
+
+async function findLinked(listId) {
+  try {
+    return (await store.getLists()).find((l) => l.kind === 'family' && l.sourceListId === listId) || null;
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}
+
 function subtitleOf(list) {
   if (list.source) return list.source;
   return `${countOf(list.kind, (list.items || []).length)} · added ${formatDate(list.createdAt || Date.now())}`;
@@ -101,6 +153,8 @@ export default async function create(params, ctx) {
   if (!list) return missingScreen(ctx);
   list = { ...list, items: list.items || [], sentences: list.sentences || [] };
   let progress = await loadProgress(list);
+  // Vocabulary lists: the family list made from their words, if any.
+  let linked = list.kind === 'vocab' ? await findLinked(list.id) : null;
 
   const body = h('div', { class: 'ld-body' });
   const s = screen({
@@ -117,6 +171,7 @@ export default async function create(params, ctx) {
   let openSheet = null;
 
   const goSentences = () => push('sentences', { listId: list.id });
+  const goFamilies = () => push('families', { listId: list.id });
   const practise = (mode) => push('practice', { listId: list.id, mode }, { modal: true });
 
   /* ---------- sentences ---------- */
@@ -149,6 +204,99 @@ export default async function create(params, ctx) {
           onTap: goSentences,
         }),
       ],
+    });
+  }
+
+  /* ---------- word families (family lists) ---------- */
+
+  function familiesBlock() {
+    const stat = familyStatus(list);
+    if (!stat.total) return null;
+    if (stat.pending.length) {
+      return h(
+        'div',
+        { class: 'section' },
+        card({
+          className: 'ld-hero',
+          children: [
+            h('div', { class: 'ld-hero-top' }, h('span', { class: 'ld-hero-icon' }, icon('sparkles')), h('div', { class: 'ld-hero-title' }, 'Make word families')),
+            h('p', { class: 'ld-hero-text' }, "Claude finds each word's family with natural examples — copy a prompt, paste the reply."),
+            stat.ready ? h('p', { class: 'ld-hero-status tabular' }, `${stat.ready} of ${countOf('family', stat.total)} ready`) : null,
+            button({ label: stat.ready ? 'Finish the families' : 'Make families', block: true, onTap: goFamilies }),
+          ],
+        }),
+      );
+    }
+    return section({
+      className: 'ld-families',
+      children: [
+        row({
+          icon: 'sparkles',
+          iconBg: 'var(--accent)',
+          title: `${countOf('family', stat.total)} · ${plural(formTotal(list.items), 'form')}`,
+          subtitle: 'Every word has its family',
+          onTap: goFamilies,
+        }),
+      ],
+    });
+  }
+
+  /* ---------- word families made from a vocabulary list ---------- */
+
+  let creating = false;
+  async function makeFamilies() {
+    if (creating) return;
+    creating = true;
+    try {
+      const existing = await findLinked(list.id);
+      if (existing) {
+        linked = existing;
+        render();
+        push('families', { listId: existing.id });
+        return;
+      }
+      if (!list.items.length) {
+        toast('Add some words to this list first', { icon: 'info', tone: 'accent' });
+        return;
+      }
+      linked = await store.saveList(familyListFrom(list));
+      render();
+      push('families', { listId: linked.id });
+    } catch (err) {
+      console.error(err);
+      toast('Could not make the family list. Please try again.', { icon: 'xCircle', tone: 'red' });
+    } finally {
+      creating = false;
+    }
+  }
+
+  function familiesLinkBlock() {
+    if (!list.items.length) return null;
+    if (!linked) {
+      return section({
+        className: 'ld-fam-link',
+        children: [
+          row({
+            icon: 'family',
+            iconBg: 'var(--teal)',
+            title: 'Make word families',
+            subtitle: `From these ${plural(list.items.length, 'word')}`,
+            ariaLabel: 'Make word families from these words',
+            onTap: makeFamilies,
+          }),
+        ],
+      });
+    }
+    const stat = familyStatus(linked);
+    let subtitle;
+    if (!stat.total) subtitle = 'No words yet';
+    else if (!stat.ready) subtitle = `${countOf('family', stat.total)} · waiting for Claude`;
+    else if (stat.pending.length) subtitle = `${stat.ready} of ${countOf('family', stat.total)} ready`;
+    else subtitle = `${countOf('family', stat.total)} · ${plural(formTotal(linked.items || []), 'form')}`;
+    const target = linked.id;
+    return section({
+      className: 'ld-fam-link linked',
+      children: [row({ icon: 'family', iconBg: 'var(--teal)', title: 'Word families', subtitle, onTap: () => push('list', { listId: target }) })],
     });
   }
 
@@ -189,17 +337,37 @@ export default async function create(params, ctx) {
       return pairs.size;
     }
     if (key === 'family') return items.filter((f) => (f.members || []).length > 1).length;
+    if (key === 'formation') {
+      // One card per member with a blank; the session builds them the same way.
+      try {
+        return buildCards(list, 'formation').length;
+      } catch (err) {
+        console.error(err);
+        return 0;
+      }
+    }
     return items.length;
+  }
+
+  // What an empty mode is waiting for, and where to get it.
+  function modeNeeds(key, n) {
+    if (n > 0) return null;
+    if (key === 'cloze') return { text: 'Needs sentences', go: goSentences };
+    if (list.kind === 'family' && (key === 'family' || key === 'formation')) {
+      const ready = familyStatus(list).ready > 0;
+      return { text: key === 'formation' && ready ? 'Needs examples' : 'Needs families', go: goFamilies };
+    }
+    return null;
   }
 
   function modeCard(mode, wide) {
     const n = modeCount(mode.key);
-    const needs = mode.key === 'cloze' && n === 0;
-    const countText = needs ? 'Needs sentences' : mode.key === 'cloze' ? plural(n, 'card') : countOf(list.kind, n);
+    const needs = modeNeeds(mode.key, n);
+    const countText = needs ? needs.text : mode.key === 'cloze' || mode.key === 'formation' ? plural(n, 'card') : countOf(list.kind, n);
     return card({
       className: ['ld-mode', wide ? 'wide' : '', needs ? 'needs' : ''].filter(Boolean).join(' '),
       ariaLabel: `${mode.label}, ${countText}`,
-      onTap: () => (needs ? goSentences() : practise(mode.key)),
+      onTap: () => (needs ? needs.go() : practise(mode.key)),
       children: h(
         'span',
         { class: 'ld-mode-inner' },
@@ -318,12 +486,28 @@ export default async function create(params, ctx) {
     );
   }
 
-  function familyRow(item) {
+  // waitingBadge: some families are ready, so the waiting ones are marked
+  // (when none is, the hero card already says so).
+  function familyRow(item, waitingBadge) {
     const members = item.members || [];
+    const ready = isFamilyReady(item);
+    const name = familyName(item);
+    const model = modelIndex(item);
+    let subtitle = null;
+    if (!ready) {
+      subtitle = item.rootMeaning ? h('span', { lang: 'vi' }, item.rootMeaning) : null;
+    } else if (members.length === 1) {
+      subtitle = item.note || null;
+    } else {
+      subtitle = members
+        .filter((_, i) => i !== model)
+        .map((m) => memberForms(m)[0] || m.word)
+        .join(' · ');
+    }
     return row({
-      className: 'ld-item',
-      title: h('span', { class: 'ld-family-words' }, members.map((m) => m.word).join(' · ')),
-      subtitle: members[0]?.definition || null,
+      className: ready ? 'ld-item ld-fam-row' : 'ld-item ld-fam-row pending',
+      title: h('span', { class: 'ld-item-head' }, h('span', { class: 'ld-item-word' }, name), posBadge(familyPos(item)), !ready && waitingBadge ? badge('Waiting', 'accent') : null),
+      subtitle,
       onTap: () => openFamily(item.id),
     });
   }
@@ -338,7 +522,8 @@ export default async function create(params, ctx) {
 
   function itemsBlock() {
     const items = list.items || [];
-    const make = list.kind === 'family' ? familyRow : list.kind === 'passage' ? passageRow : vocabRow;
+    const someReady = list.kind === 'family' && familyStatus(list).ready > 0;
+    const make = list.kind === 'family' ? (item) => familyRow(item, someReady) : list.kind === 'passage' ? passageRow : vocabRow;
     if (!items.length) {
       return section({ header: nounFor(list.kind)[1], children: [row({ title: h('span', { class: 'muted' }, 'This list is empty. Tap More › Edit list to add some.') })] });
     }
@@ -508,32 +693,153 @@ export default async function create(params, ctx) {
     return h('button', { type: 'button', class: 'icon-btn filled ld-ws-speak', 'aria-label': label, onClick: onTap }, icon(name));
   }
 
+  // Example with the member's [[form]] in bold and the brackets removed.
+  function memberExample(m) {
+    const blank = memberBlank(m);
+    if (blank) return [blank.before, h('strong', { class: 'ld-answer' }, blank.answer), blank.after];
+    const text = String(m.example || '').replace(/\[\[|\]\]/g, '');
+    return text ? [text] : null;
+  }
+
+  function memberRow(item, m, index) {
+    const word = memberForms(m)[0] || m.word;
+    const example = memberExample(m);
+    const rowEl = h(
+      'div',
+      { class: 'row ld-member' },
+      h(
+        'span',
+        { class: 'row-main' },
+        h('span', { class: 'ld-item-head' }, h('span', { class: 'ld-item-word' }, m.word), posBadge(m.pos), m.ipa ? h('span', { class: 'ipa' }, `/${m.ipa}/`) : null),
+        m.vi || m.hint
+          ? h('span', { class: 'ld-member-mean' }, m.vi ? h('span', { lang: 'vi' }, m.vi) : null, m.vi && m.hint ? ' · ' : null, m.hint ? h('span', { class: 'ld-member-hint' }, m.hint) : null)
+          : null,
+        m.definition ? h('span', { class: 'ld-member-def' }, m.definition) : null,
+        example || m.exampleVi
+          ? h(
+              'span',
+              { class: 'ld-member-quote' },
+              example ? h('span', { class: 'ld-member-ex' }, example) : null,
+              m.exampleVi ? h('span', { class: 'ld-member-exvi', lang: 'vi' }, m.exampleVi) : null,
+            )
+          : null,
+      ),
+      h(
+        'span',
+        { class: 'ld-member-actions' },
+        speakerButton(word, `Say ${word}`),
+        iconButton({ icon: 'trash', label: `Remove ${word}`, className: 'ld-member-trash', onTap: () => removeMember(item.id, index, m, rowEl) }),
+      ),
+    );
+    return rowEl;
+  }
+
+  function familyContent(item) {
+    const members = item.members || [];
+    const ready = isFamilyReady(item);
+    const name = familyName(item);
+    const model = members[modelIndex(item)];
+    const meaning = String(item.rootMeaning || '').trim() || model?.vi || '';
+    return h(
+      'div',
+      { class: 'ld-ws ld-fs' },
+      h(
+        'div',
+        { class: 'ld-ws-hero' },
+        h(
+          'div',
+          { class: 'ld-ws-main' },
+          h('div', { class: 'ld-ws-word' }, name),
+          h('div', { class: 'ld-ws-meta' }, model?.ipa ? h('span', { class: 'ipa' }, `/${model.ipa}/`) : null, posBadge(familyPos(item))),
+          meaning ? h('div', { class: 'ld-fs-meaning', lang: 'vi' }, meaning) : null,
+        ),
+        iconButtonFilled('speaker', `Say ${name}`, () => say(name)),
+      ),
+      item.note ? h('div', { class: 'card ld-fs-note' }, icon('info', { size: 20 }), h('span', null, item.note)) : null,
+      ready
+        ? null
+        : h(
+            'div',
+            { class: 'card ld-fs-wait' },
+            h('div', { class: 'ld-fs-wait-title' }, 'Waiting for Claude'),
+            h('p', { class: 'ld-fs-wait-text' }, members.length ? 'Only one form came back. Ask Claude again for the rest of the family.' : "Copy the prompt to Claude and paste the reply — this word's family will appear here."),
+            button({
+              label: 'Make word families',
+              icon: 'sparkles',
+              variant: 'tinted',
+              block: true,
+              onTap: async () => {
+                if (openSheet) await openSheet.close();
+                goFamilies();
+              },
+            }),
+          ),
+      members.length ? section({ header: plural(members.length, 'form'), className: 'ld-fs-forms', children: members.map((m, i) => memberRow(item, m, i)) }) : null,
+    );
+  }
+
   function openFamily(itemId) {
     const item = list.items.find((i) => i.id === itemId);
     if (!item) return;
-    const members = item.members || [];
-    openSheet = sheet({
-      title: members[0]?.word || 'Word family',
-      className: 'ld-sheet',
-      onClose: () => (openSheet = null),
-      content: section({
-        header: plural(members.length, 'form'),
-        children: members.map((m) =>
-          h(
-            'div',
-            { class: 'row ld-member' },
-            h(
-              'span',
-              { class: 'row-main' },
-              h('span', { class: 'ld-item-head' }, h('span', { class: 'ld-item-word' }, m.word), posBadge(m.pos), m.ipa ? h('span', { class: 'ipa' }, `/${m.ipa}/`) : null),
-              m.definition ? h('span', { class: 'ld-member-def' }, m.definition) : null,
-              m.example ? h('span', { class: 'ld-member-ex' }, m.example) : null,
-            ),
-            speakerButton(m.word, `Say ${m.word}`),
-          ),
-        ),
-      }),
+    const famSheet = sheet({
+      title: familyName(item) || 'Word family',
+      content: familyContent(item),
+      className: 'ld-sheet ld-word-sheet ld-family-sheet',
+      onClose: () => {
+        openSheet = null;
+      },
     });
+    famSheet.itemId = itemId;
+    openSheet = famSheet;
+    // The big word heads the sheet; the bar shows it only once that scrolls away.
+    famSheet.body.addEventListener('scroll', () => famSheet.el.classList.toggle('scrolled', famSheet.body.scrollTop > 44), { passive: true });
+  }
+
+  async function removeMember(itemId, index, member, rowEl) {
+    const item = list.items.find((i) => i.id === itemId);
+    if (!item) return;
+    const left = (item.members || []).length - 1;
+    const shown = memberForms(member)[0] || member.word;
+    let message = 'It will not be practised in this family any more.';
+    if (left === 0) message = 'The family will be empty until Claude builds it again.';
+    else if (left < 2 && !item.note) message = 'Only one form will be left, so this family will need Claude again.';
+    const ok = await confirm({ title: `Remove “${shown}”?`, message, confirmLabel: 'Remove', destructive: true });
+    if (!ok) return;
+    let updated = null;
+    try {
+      const latest = (await store.getList(list.id)) || list;
+      const items = (latest.items || []).map((i) => {
+        if (i.id !== itemId) return i;
+        const members = i.members || [];
+        // The member at `index` if it is still the same word, else the first with that word.
+        const at = members[index]?.word === member.word ? index : members.findIndex((m) => m.word === member.word);
+        // A family pasted written out is known by its first form: keep that
+        // name when it goes, so the family can still be asked for (and Edit
+        // list still finds it).
+        const keepName = at === 0 && !String(i.root || '').trim() ? { root: familyName(i), rootPos: familyPos(i) } : null;
+        updated = { ...i, ...keepName, members: at < 0 ? members : members.filter((_, k) => k !== at) };
+        return updated;
+      });
+      list = await store.saveList({ ...latest, items });
+      list = { ...list, items: list.items || [], sentences: list.sentences || [] };
+    } catch (err) {
+      console.error(err);
+      toast('Could not remove it. Please try again.', { icon: 'xCircle', tone: 'red' });
+      return;
+    }
+    const sheetNow = openSheet && openSheet.itemId === itemId ? openSheet : null;
+    const redraw = () => {
+      if (sheetNow && openSheet === sheetNow && updated) sheetNow.body.replaceChildren(familyContent(updated));
+    };
+    if (reducedMotion() || !rowEl.isConnected) redraw();
+    else {
+      rowEl.style.pointerEvents = 'none';
+      rowEl
+        .animate([{ opacity: 1, transform: 'translate3d(0,0,0)' }, { opacity: 0, transform: 'translate3d(-24px,0,0)' }], { duration: 220, easing: 'ease-in', fill: 'forwards' })
+        .finished.then(redraw, redraw);
+    }
+    render();
+    toast(`Removed “${shown}”`, { icon: 'trash', tone: 'accent' });
   }
 
   function openPassage(itemId) {
@@ -554,11 +860,20 @@ export default async function create(params, ctx) {
 
   async function more() {
     const actions = [{ label: 'Edit list', value: 'edit' }];
-    if (list.kind === 'vocab') actions.push({ label: (list.sentences || []).length ? 'Make new sentences' : 'Make sentences', value: 'sentences' });
+    if (list.kind === 'vocab') {
+      actions.push({ label: (list.sentences || []).length ? 'Make new sentences' : 'Make sentences', value: 'sentences' });
+      actions.push({ label: 'Make word families', value: 'families' });
+    }
+    if (list.kind === 'family' && list.items.length) actions.push({ label: 'Make word families', value: 'families' });
     actions.push({ label: 'Delete list', value: 'delete', style: 'destructive' });
     const choice = await actionSheet({ title: list.title, actions });
     if (choice === 'edit') push('import', { listId: list.id }, { modal: true });
     else if (choice === 'sentences') goSentences();
+    else if (choice === 'families') {
+      if (list.kind === 'family') goFamilies();
+      else if (linked) push('families', { listId: linked.id });
+      else makeFamilies();
+    }
     else if (choice === 'delete') {
       const ok = await confirm({
         title: `Delete “${list.title}”?`,
@@ -578,8 +893,9 @@ export default async function create(params, ctx) {
   function render() {
     const parts = [resumeBlock()];
     if (list.kind === 'vocab') parts.push(sentencesBlock());
+    if (list.kind === 'family') parts.push(familiesBlock());
     parts.push(practiseBlock());
-    if (list.kind === 'vocab') parts.push(progressBlock());
+    if (list.kind === 'vocab') parts.push(familiesLinkBlock(), progressBlock());
     parts.push(cachedItemsBlock());
     body.replaceChildren(...parts.filter(Boolean));
   }
@@ -613,6 +929,7 @@ export default async function create(params, ctx) {
     }
     list = { ...fresh, items: fresh.items || [], sentences: fresh.sentences || [] };
     progress = await loadProgress(list);
+    if (list.kind === 'vocab') linked = await findLinked(list.id);
     if (destroyed) return;
     const title = list.title || 'Untitled list';
     s.setTitle(title);

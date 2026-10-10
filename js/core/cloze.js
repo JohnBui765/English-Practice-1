@@ -4,6 +4,7 @@
 
 import { plural, uid } from './util.js';
 import { normalizeAnswer, tokenizeWords } from './text.js';
+import { firstDefined, isObject, readJsonReply, salvageFlatObjects, toNumber } from './json.js';
 
 // ---------------------------------------------------------------------------
 // Word forms
@@ -250,7 +251,8 @@ const MAX_GAP = 6; // other words allowed inside a phrase when auto-bracketing
 
 // Wraps the first run of tokens that is a form of `word` in [[ ]]. At one
 // start, longer variants win ("gets on with" before "gets on").
-function bracketFirstForm(text, word) {
+// → { text, answer } or null.
+export function bracketFirstForm(text, word) {
   const variants = [...headwordVariants(word)].sort((a, b) => b.length - a.length);
   const tokens = tokenizeWords(text);
   const forms = tokens.map((t) => normalizeForm(t.word));
@@ -304,7 +306,8 @@ function tidyPlain(s) {
   return String(s ?? '').normalize('NFC').replace(INVISIBLE, '').replace(/\s+/g, ' ').trim();
 }
 
-function tidyText(s) {
+// Sentence text: tidyPlain plus tidy [[ ]] ("[[ acquitted, ]]" → "[[acquitted]],").
+export function tidyText(s) {
   const text = tidyPlain(s)
     .replace(/\[{3,}/g, '[[')
     .replace(/\]{3,}/g, ']]')
@@ -447,77 +450,7 @@ export function buildPrompt(list, { sentencesPerSense = 1, level = 'B2', fresh =
 }
 
 // ---------------------------------------------------------------------------
-// Reading Claude's reply
-
-const SMART_DQ = /[“”„‟″]/g;
-const FENCE = /```[^\n`]*\n?([\s\S]*?)```/g;
-// After a closing quote: : } ] the end, or a comma and the next value
-// ("He said "no", then left." keeps its inner quotes).
-const CLOSES_STRING = /\s*(?:[:}\]]|,\s*(?:["{[\]}\d-]|true\b|false\b|null\b|$)|$)/y;
-const TRAILING_COMMA = /\s*[}\]]/y;
-const ODD_SPACE = /[\u00A0\u200B\u2028\u2029\uFEFF]/;
-
-// String-aware cleanup: drops trailing commas, turns raw line breaks inside
-// strings into spaces and escapes stray inner quotes ("He said "no" ...").
-function cleanJson(s) {
-  let out = '';
-  let inString = false;
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (inString) {
-      if (c === '\\') {
-        out += c + (s[i + 1] ?? '');
-        i++;
-      } else if (c === '"') {
-        CLOSES_STRING.lastIndex = i + 1;
-        if (CLOSES_STRING.test(s)) {
-          inString = false;
-          out += c;
-        } else {
-          out += '\\"';
-        }
-      } else {
-        out += c < ' ' ? ' ' : c;
-      }
-      continue;
-    }
-    if (c === '"') inString = true;
-    if (c === ',') {
-      TRAILING_COMMA.lastIndex = i + 1;
-      if (TRAILING_COMMA.test(s)) continue;
-    }
-    out += ODD_SPACE.test(c) ? ' ' : c;
-  }
-  return out;
-}
-
-// Smart quotes used as JSON delimiters (next to { [ , : or before : , } ]).
-function fixSmartDelimiters(s) {
-  return s
-    .replace(/([{[,:]\s*)[“”„‟″]/g, '$1"')
-    .replace(/[“”„‟″](\s*[:,}\]])/g, '"$1');
-}
-
-function parseLoose(s) {
-  const attempts = new Set([s, fixSmartDelimiters(s), s.replace(SMART_DQ, '"')]);
-  for (const attempt of attempts) {
-    try {
-      return JSON.parse(cleanJson(attempt));
-    } catch {
-      // try the next repair
-    }
-  }
-  return undefined;
-}
-
-const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-
-function firstDefined(obj, keys) {
-  for (const key of keys) {
-    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') return obj[key];
-  }
-  return undefined;
-}
+// Reading Claude's reply (tolerant JSON reading lives in json.js)
 
 const TEXT_KEYS = ['text', 'sentence'];
 
@@ -534,60 +467,10 @@ function sentenceObjects(value) {
   return array ? array.filter(isObject) : null;
 }
 
-// Whole chunk first, then from the first { or [ to the last } or ].
-function jsonSlices(chunk) {
-  const slices = [chunk.trim()];
-  const spans = [['{', '}'], ['[', ']']]
-    .map(([open, close]) => [chunk.indexOf(open), chunk.lastIndexOf(close)])
-    .filter(([start, end]) => start >= 0 && end > start)
-    .sort((a, b) => a[0] - b[0]);
-  for (const [start, end] of spans) slices.push(chunk.slice(start, end + 1));
-  return slices;
-}
+const hasText = (value) => firstDefined(value, TEXT_KEYS) !== undefined;
 
-// Last resort (JSON Lines, a reply cut off half-way, one broken object):
-// every flat {...} that parses on its own.
-function salvageObjects(text) {
-  const out = [];
-  for (const m of text.matchAll(/\{[^{}]*\}/g)) {
-    const value = parseLoose(m[0]);
-    if (isObject(value) && firstDefined(value, TEXT_KEYS) !== undefined) out.push(value);
-  }
-  return out;
-}
-
-function readChunk(chunk) {
-  for (const slice of jsonSlices(chunk)) {
-    const value = parseLoose(slice);
-    const objects = value === undefined ? null : sentenceObjects(value);
-    if (objects) return objects;
-  }
-  return null;
-}
-
-// Every code block counts: Claude may split a long reply over several blocks,
-// or show the format in a block of its own before the real one. When a block
-// is broken or left open (a reply cut off, then "continue" pasted after it),
-// the whole text is read instead, which salvages every complete object.
 function readReplyObjects(text) {
-  const blocks = [...text.matchAll(FENCE)].map((m) => readChunk(m[1]));
-  const allClosed = (text.match(/```/g) ?? []).length % 2 === 0;
-  if (blocks.length && allClosed && blocks.every(Boolean)) return blocks.flat();
-  const whole = readChunk(text);
-  if (whole) return whole;
-  const salvaged = salvageObjects(text);
-  return salvaged.length ? salvaged : null;
-}
-
-const ROMAN = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 };
-
-// 4, "4", "w4", "4." → 4; with `roman`, "ii" → 2.
-function toNumber(v, { roman = false } = {}) {
-  if (typeof v === 'number') return Number.isInteger(v) ? v : null;
-  if (typeof v !== 'string') return null;
-  const s = v.trim().toLowerCase().replace(/^[ws#]\s*(?=\d)/, '').replace(/[.)]$/, '');
-  if (/^\d+$/.test(s)) return Number(s);
-  return roman ? ROMAN[s] ?? null : null;
+  return readJsonReply(text, { extract: sentenceObjects, salvage: (t) => salvageFlatObjects(t, hasText) });
 }
 
 // Word number, or the word itself ("word": "acquit").

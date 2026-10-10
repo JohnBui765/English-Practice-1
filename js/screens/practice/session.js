@@ -3,6 +3,7 @@
 // repetition, history and the list's lastPracticedAt.
 import { shuffle, uid } from '../../core/util.js';
 import { newProgress, practise, dueItems } from '../../core/srs.js';
+import { checkFormation, memberBlank, memberForms, modelIndex } from '../../core/families.js';
 import * as store from '../../data/store.js';
 
 export const MODES = {
@@ -10,6 +11,7 @@ export const MODES = {
   meaning: { key: 'meaning', label: 'Meaning → Word', short: 'Type the English word', icon: 'keyboard', color: 'var(--blue)', kinds: ['vocab'] },
   flashcard: { key: 'flashcard', label: 'Word → Meaning', short: 'Recall, then check yourself', icon: 'cards', color: 'var(--purple)', kinds: ['vocab'] },
   family: { key: 'family', label: 'Word families', short: 'Fill in every form', icon: 'family', color: 'var(--teal)', kinds: ['family'] },
+  formation: { key: 'formation', label: 'Word formation', short: 'Use the right form', icon: 'textInput', color: 'var(--purple)', kinds: ['family'] },
   dictation: { key: 'dictation', label: 'Dictation', short: 'Write it from memory', icon: 'headphones', color: 'var(--pink)', kinds: ['passage'] },
   review: { key: 'review', label: 'Review', short: 'Words due today', icon: 'flame', color: 'var(--orange)', kinds: ['vocab'] },
 };
@@ -18,10 +20,57 @@ export const MAX_RETRIES = 2;
 const SNAPSHOT_KEY = 'vs.session';
 const SNAPSHOT_TTL = 24 * 60 * 60 * 1000;
 
-const cardKey = (c) => `${c.type}:${c.itemId}:${c.sentenceId || ''}`;
+// Word families and Word formation practise forms, not the item's own word:
+// only these card types update spaced repetition.
+const SRS_TYPES = new Set(['cloze', 'meaning', 'flashcard']);
 
-// Cards for one list and mode. `itemIds` limits to those items (e.g. mistakes).
-export function buildCards(list, mode, { itemIds = null, rng = Math.random } = {}) {
+const cardKey = (c) => `${c.type}:${c.itemId}:${c.sentenceId || ''}${typeof c.member === 'number' ? `:${c.member}` : ''}`;
+
+/* ---------- Word formation ---------- */
+
+// The word shown in capitals on a Word formation card: the root the learner
+// pasted, else (a family pasted fully written) the model member's first spelling.
+export function familyRoot(item) {
+  const root = String(item?.root || '').trim();
+  if (root) return root;
+  const members = item?.members || [];
+  return memberForms(members[modelIndex(item)])[0] || '';
+}
+
+// Indices of the members that get a Word formation card: the family has 2+
+// members, the member's example has a blank, and that blank is not just the
+// root itself (typing the word on the card would be no exercise).
+export function formationMembers(item) {
+  const members = item?.members || [];
+  if (members.length < 2) return [];
+  const root = familyRoot(item);
+  const out = [];
+  members.forEach((member, index) => {
+    const blank = memberBlank(member);
+    if (!blank || !blank.answer.trim()) return;
+    if (root && checkFormation(root, blank.answer, member).correct) return;
+    out.push(index);
+  });
+  return out;
+}
+
+// The member a formation card asks for: { member, index, blank }, or null
+// when it is gone. A card remembers the member's word as well as its index,
+// so deleting another member (which shifts the indices) never swaps it.
+export function formationTarget(card, item) {
+  const members = item?.members || [];
+  if (members.length < 2 || typeof card?.member !== 'number') return null;
+  let index = card.member;
+  if (card.word != null && members[index]?.word !== card.word) index = members.findIndex((m) => m?.word === card.word);
+  const member = members[index];
+  const blank = member ? memberBlank(member) : null;
+  return blank && blank.answer.trim() ? { member, index, blank } : null;
+}
+
+// Cards for one list and mode. `itemIds` limits to those items (e.g.
+// mistakes); for Word formation, `members` ([{ itemId, word }]) limits to
+// those family members.
+export function buildCards(list, mode, { itemIds = null, members = null, rng = Math.random } = {}) {
   const keep = (id) => !itemIds || itemIds.includes(id);
   const base = { listId: list.id };
   let cards = [];
@@ -43,6 +92,16 @@ export function buildCards(list, mode, { itemIds = null, rng = Math.random } = {
     cards = list.items.filter((i) => keep(i.id)).map((i) => ({ ...base, type: mode, itemId: i.id }));
   } else if (mode === 'family') {
     cards = list.items.filter((i) => keep(i.id) && i.members?.length > 1).map((i) => ({ ...base, type: 'family', itemId: i.id }));
+  } else if (mode === 'formation') {
+    const wanted = Array.isArray(members) ? members : null;
+    for (const item of list.items) {
+      if (!keep(item.id)) continue;
+      for (const index of formationMembers(item)) {
+        const word = item.members[index].word;
+        if (wanted && !wanted.some((m) => m.itemId === item.id && m.word === word)) continue;
+        cards.push({ ...base, type: 'formation', itemId: item.id, member: index, word });
+      }
+    }
   } else if (mode === 'dictation') {
     cards = list.items.filter((i) => keep(i.id)).map((i) => ({ ...base, type: 'dictation', itemId: i.id }));
   }
@@ -129,6 +188,8 @@ export function answer(session, result) {
       first: outcome,
       score: typeof result.score === 'number' ? result.score : result.correct ? 1 : 0,
     };
+    // Word formation: which member of the family was missed.
+    if (typeof card.member === 'number') Object.assign(session.outcomes[key], { member: card.member, word: card.word ?? null });
   }
   if (!result.correct && card.retry < MAX_RETRIES) {
     session.queue.push({ ...card, retry: card.retry + 1 });
@@ -155,8 +216,17 @@ export function summarize(session) {
   const hinted = outcomes.filter((o) => o.first === 'hinted').length;
   const wrong = outcomes.filter((o) => o.first === 'wrong');
   const scoreSum = outcomes.reduce((s, o) => s + (o.score ?? 0), 0);
+  // One entry per item; Word formation entries also list the missed members
+  // ({ member: index, word }), so "Practise mistakes" asks only for those.
   const missed = [];
-  for (const o of wrong) if (!missed.some((m) => m.itemId === o.itemId)) missed.push({ itemId: o.itemId, listId: o.listId });
+  for (const o of wrong) {
+    let entry = missed.find((m) => m.itemId === o.itemId);
+    if (!entry) {
+      entry = { itemId: o.itemId, listId: o.listId };
+      missed.push(entry);
+    }
+    if (typeof o.member === 'number') (entry.members ||= []).push({ member: o.member, word: o.word ?? null });
+  }
   return {
     sessionId: session.id,
     mode: session.mode,
@@ -188,7 +258,7 @@ export async function commit(session, now = Date.now()) {
   const perItem = new Map(); // itemId -> worst outcome across its cards
   const rank = { right: 0, hinted: 1, wrong: 2 };
   for (const o of outcomes) {
-    if (o.type === 'family' || o.type === 'dictation' || !exists(o)) continue;
+    if (!SRS_TYPES.has(o.type) || !exists(o)) continue;
     const prev = perItem.get(o.itemId);
     if (!prev || rank[o.first] > rank[prev.first]) perItem.set(o.itemId, o);
   }
@@ -245,11 +315,15 @@ export function clearSnapshot(id) {
   }
 }
 
-// Whether a card's list, item and (for cloze) sentence still exist.
-// `lists`: Map<listId, list>.
+// Whether a card can still be shown: its list and item exist, and its
+// sentence (cloze), its family (2+ members) or its member with a blank
+// (Word formation). `lists`: Map<listId, list>.
 export function cardResolves(card, lists) {
   const list = lists.get(card.listId);
-  if (!list || !list.items?.some((i) => i.id === card.itemId)) return false;
+  const item = list?.items?.find((i) => i.id === card.itemId);
+  if (!item) return false;
+  if (card.type === 'family') return (item.members?.length ?? 0) > 1;
+  if (card.type === 'formation') return !!formationTarget(card, item);
   return !card.sentenceId || !!list.sentences?.some((s) => s.id === card.sentenceId);
 }
 

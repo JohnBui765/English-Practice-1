@@ -49,6 +49,21 @@ export async function seedSamples(page) {
   return ids;
 }
 
+// Seeds the "Families 12" family list (made from root words, Claude's families
+// already saved: 5 families, 21 members) and reloads the app on the Today
+// tab. Returns the new list id. Can be combined with seedSamples.
+export async function seedWordFamilies(page) {
+  const id = await page.evaluate(async () => {
+    const sample = await import('/js/data/sample.js');
+    const list = await sample.createSampleWordFamilyList();
+    localStorage.removeItem('vs.nav');
+    return list.id;
+  });
+  await page.reload();
+  await page.waitForSelector('.screen');
+  return id;
+}
+
 export async function tap(page, selectorOrLocator) {
   const loc = typeof selectorOrLocator === 'string' ? page.locator(selectorOrLocator) : selectorOrLocator;
   await loc.first().tap();

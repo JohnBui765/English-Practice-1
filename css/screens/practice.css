@@ -308,3 +308,9 @@ html.kb-open .practice-footer {
 .footer-row.stacked {
   flex-direction: column;
 }
+
+/* A missed family: the Word formation members that were missed stand out. */
+.res-missed-form {
+  color: var(--label);
+  font-weight: 600;
+}

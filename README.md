@@ -16,13 +16,15 @@ into one polished app.
 - **Reads your lists as you write them**: numbered words with part of speech,
   optional IPA and Vietnamese meanings split on `i) ii) iii)`, plus the
   `Definition: / Example: / Word family: / Synonyms:` block format, word-family
-  blocks and plain passages.
+  blocks, plain word lists (one word per line) and passages.
 - **In context**: fill-in-the-blank sentences for every meaning of every word.
   Answer by tapping a word bank or by typing the exact form. Hints, a Vietnamese
   translation after each answer, and the sentence read aloud.
 - **Meaning → Word**: type the English word from its meanings, with letter hints.
 - **Word → Meaning**: flashcards you grade yourself.
-- **Word families**: fill in every form, with three difficulty levels.
+- **Word families**: Claude builds each word's family (authority → authorize,
+  authorization, authoritative…) with an example for every form. Fill in every
+  form, or practise **Word formation**: type the form a sentence needs.
 - **Dictation**: memorise a passage (or only hear it) and write it from memory.
   Word-by-word corrections that handle missing and extra words properly.
 - **Spaced repetition**: wrong answers come back in the same session, and every
@@ -44,6 +46,26 @@ the Claude app you already have, with no API key:
 
 The sentences are stored with the list, so practice works offline afterwards.
 **New set** asks for fresh sentences so you learn the words, not the sentences.
+
+## How the word families are made
+
+1. **New list** → paste plain words, one per line. They are read as
+   **Families · Make with Claude** → **Save**. (Your usual numbered list with
+   meanings works too: choose **Families**.)
+2. On the list, tap **Make families** → **Copy prompt**, send it in a new Claude
+   chat, and copy the whole reply.
+3. Back in Vocab Studio, **Paste reply** → **Save**.
+
+Claude gives 3–6 common forms of each word with IPA, a Vietnamese meaning and one
+example sentence per form. Then practise:
+
+- **Word families**: see the word, type every other form.
+- **Word formation**: a sentence with a blank and the root in capitals (DECIDE) —
+  type the form it needs (*decisively*). Hints: the part of speech, the family,
+  the first letter.
+
+On a vocabulary list, **Make word families** (under Practise, or in the **…**
+menu) makes a family list from its words.
 
 ## Put it on your iPhone
 
@@ -84,7 +106,7 @@ contracts and input formats.
 ```
 index.html, manifest.webmanifest, sw.js   app shell, install metadata, offline cache
 css/app.css, css/screens/*.css            design system + per-screen styles
-js/core/                                  pure logic (parsing, grading, sentences, spaced repetition)
+js/core/                                  pure logic (parsing, grading, sentences, word families, spaced repetition)
 js/data/                                  IndexedDB storage, sample content
 js/ui/                                    DOM helpers, components, router, keyboard, speech
 js/screens/                               screens; js/screens/practice/ = practice engine + modes

@@ -2,7 +2,8 @@
 import { h } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { screen, section, row, segmented, toggle, slider, sheet, actionSheet, confirm, toast, button } from '../ui/components.js';
-import { englishVoices, speak, supported as speechSupported, voiceQuality, voiceName, voiceAccent, currentVoice, QUALITY_LABEL } from '../ui/speech.js';
+import { englishVoices, allVoicesRaw, speak, supported as speechSupported, voiceQuality, voiceName, voiceAccent, currentVoice, QUALITY_LABEL } from '../ui/speech.js';
+import { copyText } from '../ui/clipboard.js';
 import { resetTo } from '../ui/router.js';
 import * as store from '../data/store.js';
 
@@ -197,7 +198,45 @@ async function voiceSheet(onPicked) {
         ? section({ header: 'Best quality', footer: 'Premium and Enhanced voices sound much more natural and work offline.', children: best.map(voiceRow) })
         : section({ header: 'Best quality', children: [h('div', { class: 'row voice-empty' }, h('span', { class: 'row-main' }, h('span', { class: 'row-title', style: { display: 'block' } }, 'No Premium or Enhanced voices found'), h('span', { class: 'row-subtitle', style: { display: 'block' } }, howTo)))] }),
       standard.length ? section({ header: 'Standard', footer: best.length ? 'Standard voices are the small built-in ones and sound robotic.' : null, children: standard.map(voiceRow) }) : null,
+      section({ children: [row({ title: 'Every voice this iPhone shares', subtitle: 'The raw list, all languages, for troubleshooting', onTap: () => voiceDiagnostics() })] }),
       !voices.length ? h('p', { class: 'muted small', style: { padding: '0 16px' } }, 'No English voices were found on this device.') : null,
+    ],
+  });
+}
+
+// Shows exactly what speechSynthesis.getVoices() returns, unfiltered, with a
+// Copy button so the list can be shared when a downloaded voice is missing.
+async function voiceDiagnostics() {
+  const raw = await allVoicesRaw();
+  const english = raw.filter((v) => /^en([-_]|$)/i.test(v.lang || ''));
+  const ua = navigator.userAgent;
+  const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  const report = [
+    `Vocab Studio voice report`,
+    `Voices reported: ${raw.length} (English: ${english.length})`,
+    `Home Screen app: ${standalone ? 'yes' : 'no'}`,
+    `Browser: ${ua}`,
+    '',
+    ...raw.map((v) => `${v.name} | ${v.lang} | ${v.voiceURI}${v.localService ? '' : ' | online'}${v.default ? ' | default' : ''}`),
+  ].join('\n');
+  const voiceLine = (v) =>
+    row({
+      title: v.name,
+      subtitle: `${v.lang} · ${v.voiceURI}`,
+      detail: QUALITY_LABEL[voiceQuality(v)],
+      accessory: 'none',
+    });
+  sheet({
+    title: 'Every voice',
+    right: { label: 'Copy', strong: true, onTap: async () => toast((await copyText(report)) ? 'Voice list copied' : 'Could not copy', { icon: 'copy', tone: 'accent' }) },
+    content: [
+      h(
+        'p',
+        { class: 'muted small', style: { margin: '0 4px 14px' } },
+        `Safari gave the app ${raw.length} voices (${english.length} English). This is everything the app can use — a voice missing here cannot be reached from a web app.`,
+      ),
+      english.length ? section({ header: 'English', children: english.map(voiceLine) }) : null,
+      raw.length > english.length ? section({ header: 'Other languages', children: raw.filter((v) => !english.includes(v)).map(voiceLine) }) : null,
     ],
   });
 }

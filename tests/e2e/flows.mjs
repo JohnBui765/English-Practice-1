@@ -6,11 +6,13 @@
 // Prints one PASS/FAIL line per flow and exits with code 1 if any failed.
 //
 // Flows a → b → c → d → f → g are one user journey in one browser (each needs
-// the state the previous one left). e, i, h and h2 each start a fresh browser.
-import { launch, seedSamples, shot as saveShot } from './helpers.mjs';
+// the state the previous one left). e, i, j, k, h and h2 each start a fresh browser.
+import { readFileSync } from 'node:fs';
+import { launch, seedSamples, seedWordFamilies, shot as saveShot } from './helpers.mjs';
 
 const SHOTS = !!process.env.SHOTS;
 const only = process.argv.slice(2).map((s) => s.toLowerCase());
+const fixture = (name) => readFileSync(new URL(`../fixtures/${name}`, import.meta.url), 'utf8');
 
 /* ---------- helpers ---------- */
 
@@ -63,6 +65,7 @@ const SCREEN = {
   import: '.import-screen',
   detail: '.list-detail-screen',
   sentences: '.sentences-screen',
+  families: '.families-screen',
   practice: '.screen.practice',
   results: '.results-screen',
 };
@@ -101,6 +104,7 @@ async function openMode(page, label) {
 const primary = (page) => page.locator('.practice-footer .pf-actions > .btn').first();
 const footerState = (page) => page.locator('.practice-footer').getAttribute('data-state');
 const currentCard = (page) => page.locator('.practice-card:not(.leaving):not(.checked)').first();
+const currentCardChecked = (page) => page.locator('.practice-card.checked:not(.leaving)').first();
 
 async function tapPrimary(page) {
   const btn = primary(page);
@@ -188,6 +192,50 @@ async function meaningAnswer(page) {
     }
     return null;
   });
+}
+
+// Word families: the forms to type on the current card, in field order
+// (every member except the model, first spelling of each).
+async function familyAnswers(page) {
+  return currentCard(page).evaluate(async (cardEl) => {
+    const store = await import('/js/data/store.js');
+    const fam = await import('/js/core/families.js');
+    const model = cardEl.querySelector('.fam-hero-word').textContent.trim();
+    for (const list of await store.getLists()) {
+      for (const item of list.kind === 'family' ? list.items : []) {
+        const mi = fam.modelIndex(item);
+        if ((item.members || []).length > 1 && item.members[mi].word === model) {
+          return item.members.filter((_, i) => i !== mi).map((m) => fam.memberForms(m)[0]);
+        }
+      }
+    }
+    return null;
+  });
+}
+
+// Word formation: the member whose example is on the current card →
+// { answer (the bracketed form), word (first spelling), root }.
+async function formationAnswer(page) {
+  return currentCard(page).evaluate(async (cardEl) => {
+    const store = await import('/js/data/store.js');
+    const fam = await import('/js/core/families.js');
+    const norm = (s) => s.replace(/\u200b/g, '').replace(/\s+/g, ' ').trim();
+    const shown = norm(cardEl.querySelector('.wf-sentence').textContent);
+    for (const list of await store.getLists()) {
+      for (const item of list.kind === 'family' ? list.items : []) {
+        for (const m of item.members || []) {
+          const b = fam.memberBlank(m);
+          if (b && norm(b.before + b.after) === shown) return { answer: b.answer, word: fam.memberForms(m)[0], root: item.root, itemId: item.id };
+        }
+      }
+    }
+    return null;
+  });
+}
+
+// The router's current route ({ name, params }), from the app's own module.
+function route(page) {
+  return page.evaluate(async () => (await import('/js/ui/router.js')).current());
 }
 
 // One-letter typo near the end: "acquit" → "acquix".
@@ -648,11 +696,268 @@ async function flowI() {
   }
 }
 
+async function flowJ() {
+  const { browser, page, errors } = await launch({ device: 'iphone' });
+  try {
+    await waitTop(page, SCREEN.today);
+    await tapTab(page, 'lists');
+
+    // Plain words → a family list whose families Claude will make.
+    await top(page).locator('.nav-action[aria-label="New list"]').tap();
+    await waitTop(page, SCREEN.import);
+    await top(page).locator('textarea.imp-text').fill(fixture('family-words.txt'));
+    const rootsHeader = '5 words — Claude will build their families next';
+    await page.waitForFunction((want) => document.querySelector('.imp-preview .section-header')?.textContent.trim() === want, rootsHeader, { timeout: 3000 }).catch(() => {});
+    const header = await textOf(top(page).locator('.imp-preview .section-header'));
+    assert(header === rootsHeader, `preview header: "${header}"`);
+    assert((await top(page).locator('.imp-preview .imp-item').count()) === 5, 'preview shows 5 words');
+    const pressed = (group) => textOf(top(page).locator(`.segmented[aria-label="${group}"] button[aria-pressed="true"]`));
+    assert((await pressed('List type')) === 'Auto', `type stays on Auto (${await pressed('List type')})`);
+    assert((await textOf(top(page).locator('.imp-kind .imp-detected').first())) === 'Detected: Word list', 'detected as a word list');
+    assert(await top(page).locator('.imp-family').isVisible(), 'the Families choice shows');
+    assert((await pressed('Families')) === 'Make with Claude', `families made with Claude (${await pressed('Families')})`);
+    const save = top(page).locator('.footer .btn');
+    assert((await textOf(save)) === 'Save 5 words', `footer label: ${await textOf(save)}`);
+    await shot(page, 'j1-import');
+    await save.tap();
+    await waitTop(page, SCREEN.detail);
+    let [list] = await getLists(page);
+    assert(list.kind === 'family' && list.items.length === 5, `saved a family list of 5 (${list.kind}, ${list.items.length})`);
+    assert(list.items.map((i) => i.root).join('|') === 'authority|demonstrate|able|decide|come up with', `roots: ${list.items.map((i) => i.root)}`);
+    assert(list.items.every((i) => Array.isArray(i.members) && !i.members.length), 'every family waits for Claude');
+    const hero = top(page).locator('.ld-hero');
+    assert((await textOf(hero)).includes('Make word families'), 'list detail shows the "Make word families" card');
+    assert((await top(page).locator('.ld-fam-row.pending').count()) === 5, 'five rows waiting for Claude');
+    await shot(page, 'j2-detail');
+
+    // Copy the prompt; iOS closes the app while the learner is in Claude.
+    await hero.getByRole('button', { name: 'Make families' }).tap();
+    await waitTop(page, SCREEN.families);
+    assert((await textOf(top(page).locator('.fm-status-title'))) === 'No families yet', 'status: no families yet');
+    assert((await textOf(top(page).locator('.fm-status-sub'))) === '5 words waiting for Claude', `status sub: ${await textOf(top(page).locator('.fm-status-sub'))}`);
+    await shot(page, 'j3-families');
+    await top(page).getByRole('button', { name: 'Copy prompt', exact: true }).tap();
+    await page.waitForFunction(() => document.querySelector('.toast')?.textContent.includes('Prompt copied'), null, { timeout: 3000 });
+    const clip = await page.evaluate(() => navigator.clipboard.readText());
+    for (const want of ['1. authority', '2. demonstrate', '3. able', '4. decide', '5. come up with', 'word family', '[[authorized]]', 'example_vi', '"families"', 'American IPA', 'note']) {
+      assert(clip.includes(want), `prompt should contain ${JSON.stringify(want)}`);
+    }
+    await page.reload();
+    await page.waitForSelector('#app > .screen', { state: 'attached' });
+    await waitTop(page, SCREEN.families);
+    assert(await top(page).locator('.fm-step-num.done').count(), 'step 1 is ticked after coming back');
+    const replyBox = top(page).locator('textarea.fm-reply');
+    const inView = await replyBox.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return r.top >= 0 && r.top < window.innerHeight - 100;
+    });
+    assert(inView, 'the screen comes back at step 2 (reply box in view)');
+
+    // Paste Claude's reply and save.
+    await replyBox.fill(fixture('family-reply.md'));
+    await page.waitForFunction(() => /5 families · 21 forms ready/.test(document.querySelector('.fm-result')?.textContent || ''), null, { timeout: 3000 }).catch(() => {});
+    const result = await textOf(top(page).locator('.fm-result'));
+    assert(result.includes('5 families · 21 forms ready'), `result: "${result}"`);
+    assert(!/missing|skipped|worth a check/i.test(result), `no problems reported: "${result}"`);
+    const saveFamilies = top(page).locator('.footer .btn');
+    assert((await textOf(saveFamilies)) === 'Save 5 families', `save label: ${await textOf(saveFamilies)}`);
+    await shot(page, 'j4-reply');
+    await saveFamilies.tap();
+    await waitTop(page, SCREEN.detail);
+    const famRow = await textOf(top(page).locator('.ld-families'));
+    assert(famRow.includes('5 families · 21 forms'), `detail should show "5 families · 21 forms", got "${famRow}"`);
+    assert(!(await top(page).locator('.ld-hero').count()), 'hero card gone');
+    [list] = await getLists(page);
+    assert(list.items.map((i) => i.members.length).join(',') === '6,4,5,5,1', `members per family: ${list.items.map((i) => i.members.length)}`);
+    assert(/no word family/.test(list.items[4].note), 'the phrasal verb keeps its note');
+    assert(!(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('vs.families.')).length)), 'draft cleared after saving');
+    await shot(page, 'j5-detail');
+
+    // The family sheet: every form with its example and translation.
+    await top(page).locator('.ld-fam-row', { hasText: 'authority' }).tap();
+    await page.waitForSelector('.overlay.open .sheet');
+    await page.waitForTimeout(450);
+    const sheetEl = page.locator('.overlay.open .sheet');
+    assert((await textOf(sheetEl.locator('.ld-fs-forms .section-header'))) === '6 forms', 'sheet lists 6 forms');
+    assert((await sheetEl.locator('.ld-member').count()) === 6, 'one row per form');
+    assert((await textOf(sheetEl.locator('.ld-member-ex .ld-answer').first())) === 'authority', 'the form is bold in its example');
+    assert((await textOf(sheetEl.locator('.ld-member').nth(1))).includes('authorize / authorise'), 'both spellings shown');
+    assert(!(await textOf(sheetEl)).includes('[['), 'no brackets in the sheet');
+    assert((await sheetEl.locator('.ld-member-exvi').count()) === 6, 'every example has its translation');
+    await shot(page, 'j6-sheet');
+    await sheetEl.locator('.nav-action').first().tap();
+    await page.waitForFunction(() => !document.querySelector('.overlay'), null, { timeout: 2000 });
+
+    // Word families: one card right, then end the session.
+    await openMode(page, 'Word families');
+    assert((await counter(page)) === '0/4', `4 families with forms (${await counter(page)})`);
+    const forms = await familyAnswers(page);
+    assert(forms, 'could not find the family on the card');
+    const fields = currentCard(page).locator('input.fam-field');
+    assert((await fields.count()) === forms.length, 'one field per other form');
+    for (let i = 0; i < forms.length; i++) await fields.nth(i).fill(forms[i]);
+    await tapPrimary(page);
+    await expectState(page, 'right');
+    assert((await currentCardChecked(page).locator('.fam-example-vi').count()) > 0, 'translations shown after Check');
+    await shot(page, 'j7-family');
+    await page.locator('.practice-top .icon-btn').tap();
+    await page.locator('.overlay.open .alert button', { hasText: 'End session' }).tap();
+    await waitTop(page, SCREEN.results);
+    let stats = await resultStats(page);
+    assert(stats.Correct === 1 && stats.Mistake === 0, `family results: ${JSON.stringify(stats)}`);
+    await top(page).getByRole('button', { name: 'Done' }).tap();
+    await waitTop(page, SCREEN.detail);
+
+    // Word formation: a full session with a wrong form, a slip and hints.
+    await openMode(page, 'Word formation');
+    assert((await counter(page)) === '0/18', `18 formation cards (${await counter(page)})`);
+    await page.waitForFunction(() => document.activeElement?.classList.contains('wf-field'), null, { timeout: 2000 }).catch(() => {});
+    assert(await page.evaluate(() => document.activeElement?.classList.contains('wf-field')), 'the answer field has focus');
+    const missed = [];
+    let sawRetry = false;
+    for (let n = 0; n < 40; n++) {
+      const ans = await formationAnswer(page);
+      assert(ans, 'could not find the member on the card');
+      const cardEl = currentCard(page);
+      assert((await textOf(cardEl.locator('.wf-root'))) === ans.root, `card shows the root "${ans.root}"`);
+      const field = page.locator('.practice-card:not(.leaving) input.wf-field');
+      assert((await field.getAttribute('autocorrect')) === 'off' && (await field.getAttribute('autocapitalize')) === 'off', 'answer field has autocorrect/autocapitalize off');
+      const retry = await cardEl.locator('.retry-tag').count();
+      if (retry) {
+        assert(missed.some((m) => m.answer === ans.answer), `only missed cards come back (${ans.answer})`);
+        sawRetry = true;
+      }
+      const kind = retry ? 'right' : ['wrongForm', 'close', 'hints'][n] || 'right';
+      if (kind === 'wrongForm') {
+        await field.fill(ans.word !== ans.answer ? ans.word : `${ans.answer}s`);
+        await tapPrimary(page);
+        await expectState(page, 'wrong');
+        const fb = await feedback(page);
+        assert(fb.title === 'Right word, wrong form' && fb.detail === `The sentence needs "${ans.answer}".`, `wrong form feedback: ${fb.title} / ${fb.detail}`);
+        assert((await textOf(currentCardChecked(page).locator('.wf-blank .wf-ans'))) === ans.answer, 'the blank shows the answer');
+        missed.push(ans);
+        await shot(page, 'j8-formation-wrong-form');
+      } else if (kind === 'close') {
+        await field.fill(typo(ans.answer));
+        await tapPrimary(page);
+        await expectState(page, 'close');
+        const fb = await feedback(page);
+        assert(fb.title === 'Almost — check the spelling' && fb.detail === `Answer: ${ans.answer}`, `close feedback: ${fb.title} / ${fb.detail}`);
+        assert(await field.evaluate((el) => el.classList.contains('is-close')), 'near miss marks the field orange');
+        missed.push(ans);
+      } else if (kind === 'hints') {
+        const hint = cardEl.locator('.wf-hint-btn');
+        await hint.tap();
+        await cardEl.locator('.wf-callout:not([hidden])').waitFor();
+        assert(/^Needs an? /.test(await textOf(cardEl.locator('.wf-callout-strong').first())), 'hint 1 names the part of speech');
+        await page.waitForTimeout(400); // a double tap uses one hint, not two
+        await hint.tap();
+        const chips = cardEl.locator('.wf-forms .chip');
+        await chips.first().waitFor();
+        assert((await chips.count()) >= 3, 'hint 2 shows the family as chips');
+        await chips.first().tap();
+        assert((await field.inputValue()) === (await textOf(chips.first())), 'a chip fills the field');
+        await page.waitForTimeout(400);
+        await hint.tap();
+        assert((await textOf(cardEl.locator('.wf-callout-text'))).includes('Starts with'), 'hint 3 gives the first letter');
+        assert(await hint.isHidden(), 'no more hints after the third');
+        await shot(page, 'j9-formation-hints');
+        await field.fill(ans.answer);
+        await footerSettled(page);
+        await field.press('Enter'); // Enter checks
+        await expectState(page, 'right');
+        assert((await feedback(page)).title === 'Correct — with a hint', 'hinted answer');
+      } else {
+        await field.fill(ans.answer);
+        await tapPrimary(page);
+        await expectState(page, 'right');
+      }
+      if (n === 0) {
+        assert(await currentCardChecked(page).locator('.wf-reveal .wf-word').isVisible(), 'after Check the card shows the member with its speaker');
+        assert(await field.evaluate((el) => el.readOnly && document.activeElement === el), 'the checked field is read-only and keeps focus');
+      }
+      await tapPrimary(page); // Continue
+      if (await afterContinue(page)) break;
+    }
+    assert(sawRetry, 'missed cards came back as "Try again"');
+    await waitTop(page, SCREEN.results);
+    stats = await resultStats(page);
+    assert(stats.Correct === 16 && stats.Mistake === 2, `formation results: ${JSON.stringify(stats)}`);
+    const bold = await top(page).locator('.res-missed-form').allTextContents();
+    for (const m of missed) assert(bold.includes(m.word), `"${m.word}" is marked under To review (${bold})`);
+    assert((await textOf(top(page).locator('.res-sub'))).includes('Word formation'), 'results name the mode');
+    await shot(page, 'j10-results');
+    await top(page).getByRole('button', { name: 'Practise mistakes' }).tap();
+    await waitTop(page, SCREEN.practice);
+    await page.waitForSelector('.practice-card:not(.leaving)');
+    assert((await counter(page)) === '0/2', `mistakes round asks only the 2 missed forms (${await counter(page)})`);
+    const again = await formationAnswer(page);
+    assert(missed.some((m) => m.answer === again.answer), `mistakes round card is a missed form (${again.answer})`);
+    await page.locator('.practice-top .icon-btn').tap(); // nothing answered: closes at once
+    await waitTop(page, SCREEN.detail);
+    assert(!errors.length, `console errors: ${errors.join(' | ')}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function flowK() {
+  const { browser, page, errors } = await launch({ device: 'iphone' });
+  try {
+    const ids = await seedSamples(page);
+    await waitTop(page, SCREEN.today);
+    await openList(page, 'Sample list');
+    const make = top(page).locator('.ld-fam-link .row[aria-label="Make word families from these words"]');
+    assert(await make.count(), 'the vocabulary list offers "Make word families"');
+    assert((await textOf(make)).includes('From these 11 words'), `row text: ${await textOf(make)}`);
+    await make.tap();
+    await waitTop(page, SCREEN.families);
+    let linked = (await getLists(page)).filter((l) => l.sourceListId === ids.vocab);
+    assert(linked.length === 1, `one linked list (${linked.length})`);
+    const fam = linked[0];
+    assert(fam.kind === 'family' && fam.title === 'Sample list · families', `linked list: ${fam.kind} "${fam.title}"`);
+    const vocab = (await getLists(page)).find((l) => l.id === ids.vocab);
+    assert(fam.items.map((i) => i.root).join('|') === vocab.items.map((i) => i.word).join('|'), 'one root per word of the vocabulary list');
+    assert(fam.items.every((i) => !i.members.length && i.rootMeaning), 'roots keep their meanings and wait for Claude');
+    assert((await route(page)).params.listId === fam.id, 'families screen opened for the new list');
+    assert((await textOf(top(page).locator('.fm-status-sub'))) === '11 words waiting for Claude', `status: ${await textOf(top(page).locator('.fm-status-sub'))}`);
+    await shot(page, 'k1-families');
+
+    // Back on the vocabulary list the row now leads to the same family list.
+    await top(page).locator('.nav-back').tap();
+    await waitTop(page, SCREEN.detail);
+    const linkRow = top(page).locator('.ld-fam-link.linked .row');
+    const linkText = await textOf(linkRow);
+    assert(linkText.includes('Word families') && linkText.includes('11 families · waiting for Claude'), `linked row: ${linkText}`);
+    await shot(page, 'k2-linked-row');
+    await linkRow.tap();
+    await waitTop(page, SCREEN.detail);
+    assert((await route(page)).params.listId === fam.id, 'second tap opens the same family list');
+    assert((await textOf(top(page).locator('.nav-title'))) === 'Sample list · families', 'family list title');
+    assert((await textOf(top(page).locator('.ld-hero'))).includes('Make word families'), 'family list shows the "Make word families" card');
+    await top(page).locator('.nav-back').tap();
+    await waitTop(page, SCREEN.detail);
+
+    // The … menu reaches the same list too, without making another one.
+    await top(page).locator('.nav-action[aria-label="More"]').tap();
+    await page.locator('.action-sheet button', { hasText: 'Make word families' }).tap();
+    await waitTop(page, SCREEN.families);
+    assert((await route(page)).params.listId === fam.id, '… menu opens the same family list');
+    const lists = await getLists(page);
+    linked = lists.filter((l) => l.sourceListId === ids.vocab);
+    assert(linked.length === 1 && lists.length === 4, `no second family list (${linked.length} linked, ${lists.length} lists)`);
+    assert(!errors.length, `console errors: ${errors.join(' | ')}`);
+  } finally {
+    await browser.close();
+  }
+}
+
 async function smoke({ device, dark }) {
   const { browser, page, errors } = await launch({ device, dark });
   const tag = `${device}${dark ? '-dark' : ''}`;
   try {
     await seedSamples(page);
+    await seedWordFamilies(page);
     await waitTop(page, SCREEN.today);
     await checkNoOverflow(page, 'Today');
     await shot(page, `h-${tag}-today`);
@@ -720,6 +1025,77 @@ async function smoke({ device, dark }) {
     await waitTop(page, SCREEN.detail);
     await top(page).locator('.nav-back').tap();
     await waitTop(page, SCREEN.lists);
+
+    // Word families made by Claude: list, sheet, families screen, Word formation.
+    await openList(page, 'Families 12');
+    await checkNoOverflow(page, 'Family list detail');
+    await shot(page, `h-${tag}-family-detail`);
+    await top(page).locator('.ld-fam-row').first().tap();
+    await page.waitForSelector('.overlay.open .sheet');
+    await page.waitForTimeout(450);
+    await checkNoOverflow(page, 'Family sheet');
+    await shot(page, `h-${tag}-family-sheet`);
+    await page.locator('.overlay.open .sheet .nav-action').first().tap();
+    await page.waitForFunction(() => !document.querySelector('.overlay'), null, { timeout: 2000 });
+    await top(page).locator('.ld-families .row').tap();
+    await waitTop(page, SCREEN.families);
+    await checkNoOverflow(page, 'Word families screen');
+    await shot(page, `h-${tag}-families`);
+    // A reply with problems: the notes, the missing list and every family row must fit.
+    const partial = [
+      'Here you go:',
+      '```json',
+      JSON.stringify({
+        families: [
+          {
+            w: 1,
+            members: [
+              { word: 'authority', pos: 'n', ipa: 'əˈθɔːrəti', vi: 'quyền lực', example: 'Only the director has the [[authority]] to approve the payment.' },
+              { word: 'authorize / authorise', pos: 'v', vi: 'cho phép', example: 'The director has not signed the form yet.' },
+              { pos: 'adj', vi: 'đáng tin cậy' },
+            ],
+          },
+          { w: 3, members: [{ word: 'able', pos: 'adj', vi: 'có thể', example: 'She was [[able]] to follow the news in English.' }] },
+        ],
+      }),
+      '```',
+    ].join('\n');
+    await top(page).locator('textarea.fm-reply').fill(partial);
+    await page.waitForFunction(() => document.querySelector('.fm-result')?.childElementCount > 1, null, { timeout: 3000 });
+    await top(page).locator('.fm-cur-head').tap();
+    await page.waitForTimeout(300);
+    await checkNoOverflow(page, 'Word families screen with a reply');
+    await shot(page, `h-${tag}-families-reply`);
+    await top(page).locator('.fm-clear').tap();
+    await top(page).locator('.nav-back').tap();
+    await waitTop(page, SCREEN.detail);
+
+    await openMode(page, 'Word formation');
+    await checkNoOverflow(page, 'Formation card');
+    await shot(page, `h-${tag}-formation`);
+    const hintBtn = currentCard(page).locator('.wf-hint-btn');
+    for (let i = 0; i < 3 && (await hintBtn.isVisible()); i++) {
+      await hintBtn.tap();
+      await page.waitForTimeout(400);
+    }
+    await checkNoOverflow(page, 'Formation hints');
+    await shot(page, `h-${tag}-formation-hints`);
+    await page.locator('.practice-card:not(.leaving) input.wf-field').fill('zzzz');
+    await tapPrimary(page);
+    await page.waitForFunction(() => document.querySelector('.practice-footer')?.dataset.state !== 'idle');
+    await page.waitForTimeout(350);
+    await checkNoOverflow(page, 'Checked formation card');
+    await shot(page, `h-${tag}-formation-checked`);
+    await page.locator('.practice-top .icon-btn').tap();
+    await page.locator('.overlay.open .alert button', { hasText: 'End session' }).tap();
+    await waitTop(page, SCREEN.results);
+    await checkNoOverflow(page, 'Formation results');
+    await shot(page, `h-${tag}-formation-results`);
+    await top(page).getByRole('button', { name: 'Done' }).tap();
+    await waitTop(page, SCREEN.detail);
+    await top(page).locator('.nav-back').tap();
+    await waitTop(page, SCREEN.lists);
+
     await openList(page, 'Dictation (sample)');
     await openMode(page, 'Dictation');
     await checkNoOverflow(page, 'Dictation card');
@@ -753,6 +1129,8 @@ const FLOWS = [
   { id: 'g', name: 'Escape closes a sheet only; swipe back from list detail to Lists', run: flowG, journey: true },
   { id: 'e', name: 'Word families and dictation sessions to results', run: flowE },
   { id: 'i', name: 'Review from Today, end early (button and Escape ask first), resume from list detail after reload', run: flowI },
+  { id: 'j', name: 'Word families: paste words, copy prompt, app reopened, paste reply, sheet, Word families + Word formation to results', run: flowJ },
+  { id: 'k', name: 'Make word families from a vocabulary list: linked list, second tap opens the same list', run: flowK },
   { id: 'h', name: 'Smoke 375×667 dark: every screen, no overflow, no errors', run: () => smoke({ device: 'se', dark: true }) },
   { id: 'h2', name: 'Smoke 375×667 light: every screen, no overflow, no errors', run: () => smoke({ device: 'se', dark: false }) },
 ];

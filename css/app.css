@@ -194,12 +194,15 @@
   :root:not([data-theme='light']) .sheet {
     --bg: #1c1c1e;
     --card: #2c2c2e;
+    /* Lighter grey badges, so their text keeps 4.5:1 on the lighter card. */
+    --gray-tint: rgba(142, 142, 147, 0.14);
   }
 }
 
 :root[data-theme='dark'] .sheet {
   --bg: #1c1c1e;
   --card: #2c2c2e;
+  --gray-tint: rgba(142, 142, 147, 0.14);
 }
 
 /* ---------- Base ---------- */
@@ -1511,7 +1514,7 @@ button.card {
 }
 
 .alert-actions button.destructive {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .alert-actions button:active {
@@ -1572,7 +1575,7 @@ button.card {
 }
 
 .action-group button.destructive {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .action-group button.cancel {

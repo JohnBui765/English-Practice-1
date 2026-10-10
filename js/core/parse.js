@@ -2,18 +2,24 @@
 // Pure: no DOM, no storage.
 
 import { uid } from './util.js';
-import { normalizePos, tokenizeWords } from './text.js';
+import { normalizeAnswer, normalizePos, tokenizeWords } from './text.js';
 
 const KINDS = ['vocab', 'family', 'passage'];
-const KIND_BY_FORMAT = { oneline: 'vocab', block: 'vocab', family: 'family', passage: 'passage' };
+// List kind for each detected format. A plain word list becomes a family list
+// whose families Claude builds later (format 'roots').
+export const KIND_BY_FORMAT = Object.freeze({
+  oneline: 'vocab', block: 'vocab', family: 'family', passage: 'passage', wordlist: 'family',
+});
 const MAX_TITLE_LENGTH = 60;
 const MAX_HEAD_WORDS = 6;
+const MAX_ROOT_WORDS = 4; // a plain word-list line: "come up with", "take sth for granted"
 
 const REASON = {
   missingSep: 'No meaning: put ":" between the word and its meaning',
   noWord: 'No word before ":"',
   noMeaning: 'No meaning after the word',
   orphan: 'Not part of any entry',
+  notWord: 'Not a word or a short phrase',
 };
 
 // ---------------------------------------------------------------------------
@@ -23,13 +29,19 @@ export function detectFormat(text) {
   return detectFromLines(toLines(text).map(classifyLine));
 }
 
+// options: { kind: 'vocab' | 'family' | 'passage', roots: boolean }.
+// `roots` (families only) reads root words for Claude to build families from;
+// an auto-detected plain word list does the same.
 export function parseList(text, options = {}) {
   const lines = toLines(text);
   const classes = lines.map(classifyLine);
   const detected = detectFromLines(classes);
-  const kind = KINDS.includes(options?.kind) ? options.kind : KIND_BY_FORMAT[detected];
+  const forced = KINDS.includes(options?.kind) ? options.kind : null;
+  const roots = (options?.roots === true && (forced ?? 'family') === 'family') || (!forced && detected === 'wordlist');
+  const kind = roots ? 'family' : forced ?? KIND_BY_FORMAT[detected];
 
   if (kind === 'passage') return { kind, format: 'passage', ...parsePassages(lines) };
+  if (roots) return { kind, format: 'roots', ...parseRoots(classes, detected) };
   if (kind === 'family') return { kind, format: 'family', ...parseFamilies(classes) };
   const format = detected === 'block' ? 'block' : 'oneline';
   return { kind, format, ...parseVocab(classes, format) };
@@ -137,8 +149,49 @@ function detectFromLines(classes) {
   if (classes.every((c) => c.type === 'blank')) return 'oneline';
   if (classes.some((c) => c.type === 'label' && c.field === 'senses')) return 'block';
   const numberedDoc = classes.some(isNumberedEntry);
+  if (!numberedDoc && isWordList(classes)) return 'wordlist';
   if (!classes.some((c) => looksLikeEntry(c, numberedDoc))) return 'passage';
   return isFamilyLayout(classes) ? 'family' : 'oneline';
+}
+
+// A plain word list: every line (after an optional title line) is one or more
+// words or short phrases separated by commas/semicolons, without a meaning.
+// "1. Wake up early / 2. Read the news" is a to-do list, not vocabulary: most
+// items must be a single word or start with a small letter.
+function isWordList(classes) {
+  const titleAt = wordListTitleIndex(classes);
+  let items = 0;
+  let wordish = 0;
+  for (let i = 0; i < classes.length; i++) {
+    const cls = classes[i];
+    if (cls.type === 'blank' || i === titleAt) continue;
+    if (cls.type === 'text' && isHeading(cls.line)) continue; // "379." between two lists
+    if (cls.type === 'label') return false;
+    const roots = plainRoots(cls.content, { strict: true });
+    if (!roots) return false;
+    for (const root of roots) {
+      items++;
+      if (tokenizeWords(root.word).length === 1 || !/^\p{Lu}/u.test(root.word)) wordish++;
+    }
+  }
+  return items > 0 && wordish * 2 >= items;
+}
+
+// Index of a title line above a plain word list, or -1: a heading ("378.",
+// "# Unit 5"), a short line with a number ("Families 12"), a line ending in
+// ":" ("My words:"), or a capitalised first line set apart by a blank line
+// above lower-case words ("Travel words" / "" / "luggage" / "passport").
+function wordListTitleIndex(classes) {
+  const i = classes.findIndex((c) => c.type !== 'blank');
+  const cls = classes[i];
+  if (!cls || cls.type !== 'text' || cls.line.length > MAX_TITLE_LENGTH || lineEntry(cls, false)) return -1;
+  const rest = classes.slice(i + 1).filter((c) => c.type !== 'blank');
+  if (!rest.length) return -1;
+  if (isHeading(cls.line) || /[:：]\s*$/u.test(cls.line)) return i;
+  if (/\p{N}/u.test(cls.line) && tokenizeWords(cls.line).length <= MAX_HEAD_WORDS) return i;
+  const setApart = classes[i + 1]?.type === 'blank' && rest.length >= 2 && !partsOf(cls).hasSep;
+  const lowerBelow = rest.every((c) => /^[*_"“'‘(]*\p{Ll}/u.test(c.content ?? ''));
+  return setApart && /^\p{Lu}/u.test(cls.line) && lowerBelow ? i : -1;
 }
 
 function isNumberedEntry(cls) {
@@ -425,9 +478,11 @@ function splitList(s) {
 // ---------------------------------------------------------------------------
 // Vocab lists (one-line and block formats)
 
-function parseVocab(classes, format) {
+function parseVocab(classes, format, { roots = false } = {}) {
   const s = {
     format,
+    roots, // family roots: entries without a meaning are fine, plain word lines start entries
+    titleAt: roots ? wordListTitleIndex(classes) : -1,
     numberedDoc: classes.some(isNumberedEntry),
     title: '',
     warnings: [],
@@ -441,7 +496,11 @@ function parseVocab(classes, format) {
 
   const items = [];
   for (const entry of s.entries) {
-    const item = toVocabItem(entry, items.length + 1);
+    if (roots && !/\p{L}/u.test(entry.word)) {
+      s.warnings.push({ line: entry.line, text: entry.text, reason: REASON.notWord });
+      continue;
+    }
+    const item = toVocabItem(entry, items.length + 1, { allowEmpty: roots });
     if (item) items.push(item);
     else s.warnings.push({ line: entry.line, text: entry.text, reason: REASON.noMeaning });
   }
@@ -459,6 +518,10 @@ function vocabLine(s, cls, lineNo, next) {
   s.started = true;
   const warn = (reason) => s.warnings.push({ line: lineNo, text: cls.line, reason });
 
+  if (lineNo - 1 === s.titleAt) {
+    s.title = cleanTitle(cls.line);
+    return;
+  }
   if (cls.type === 'numbered') return vocabNumbered(s, cls, lineNo, warn);
   if (cls.type === 'label') {
     if (s.current) {
@@ -469,10 +532,25 @@ function vocabLine(s, cls, lineNo, next) {
   }
   const head = lineEntry(cls, s.numberedDoc) ?? blockHeader(s, cls, next);
   if (head) return startEntry(s, head, lineNo, cls.line);
+  if (s.roots && rootLinesAllowed(s)) {
+    const roots = plainRoots(cls.content);
+    if (roots) return startRoots(s, roots, lineNo, cls.line);
+  }
   if (s.current && s.open && !isHeading(cls.line)) return addContinuation(s.current, cls);
   if (s.skipping) return;
   if (takeTitle(s, cls.line, first, s.entries.length > 0)) return;
+  if (s.roots && isHeading(cls.line)) return; // "379." between two lists
   warn(REASON.orphan);
+}
+
+// Roots: a plain line starts new roots unless it may be wrapped text of the
+// open entry (numbered and block lists wrap long meanings onto new lines).
+function rootLinesAllowed(s) {
+  return !(s.current && s.open) || (!s.numberedDoc && s.format !== 'block');
+}
+
+function startRoots(s, roots, lineNo, text) {
+  for (const root of roots) startEntry(s, { ...root, meaning: root.meaning ?? null }, lineNo, text);
 }
 
 function vocabNumbered(s, cls, lineNo, warn) {
@@ -485,6 +563,10 @@ function vocabNumbered(s, cls, lineNo, warn) {
   if (parts.hasSep) {
     if (!head.word) return reject(s, warn, REASON.noWord);
     return startEntry(s, { ...head, meaning: parts.meaning }, lineNo, cls.line);
+  }
+  if (s.roots) {
+    const roots = plainRoots(cls.content, { numbered: true });
+    return roots ? startRoots(s, roots, lineNo, cls.line) : reject(s, warn, REASON.notWord);
   }
   if (s.format === 'block') {
     if (!head.word) return reject(s, warn, REASON.noWord);
@@ -579,11 +661,11 @@ function addContinuation(entry, cls) {
   }
 }
 
-function toVocabItem(entry, n) {
+function toVocabItem(entry, n, { allowEmpty = false } = {}) {
   const { fields } = entry;
   const synonyms = [];
   const senses = fields.senses.flatMap((seg) => splitSenses(takeSynonyms(seg.text, synonyms)));
-  if (!senses.length) return null;
+  if (!senses.length && !allowEmpty) return null;
   for (const seg of fields.synonyms) synonyms.push(...splitList(seg.text));
   return {
     id: uid(),
@@ -696,6 +778,88 @@ function appendMember(member, field, text) {
 
 function finishMember(m) {
   return { ...m, definition: collapse(m.definition), example: collapse(m.example) };
+}
+
+// ---------------------------------------------------------------------------
+// Family roots: the words Claude builds word families from (format 'roots')
+
+// Every list format works: the one-line and block vocabulary formats (meaning
+// = the senses joined with "; "), numbered or bulleted lines, plain lines and
+// comma/semicolon lists. Case-insensitive duplicates are dropped.
+function parseRoots(classes, detected) {
+  const { title, items, warnings } = parseVocab(classes, detected === 'block' ? 'block' : 'oneline', { roots: true });
+  const seen = new Set();
+  const out = [];
+  for (const item of items) {
+    const key = normalizeAnswer(item.word);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      id: uid(),
+      root: item.word,
+      rootPos: item.pos,
+      rootMeaning: collapse(item.senses.join('; ')),
+      note: '',
+      members: [],
+    });
+  }
+  return { title, items: out, warnings };
+}
+
+// The roots on one line — "authority", "authority (n)", "come up with",
+// "decide, decision; decisive" — or one root with a meaning after ":", a
+// spaced dash, "=" or "→" ("jolt: giật mạnh", "jolt - giật mạnh"). Null when
+// the line is not a word list. `numbered` (a numbered line in a roots paste)
+// allows longer phrases and a final full stop; `strict` (detection) allows
+// no meaning at all.
+function plainRoots(content, { numbered = false, strict = false } = {}) {
+  if (!content) return null;
+  const parts = splitEntry(content);
+  if (parts.hasSep) {
+    const root = strict ? null : rootHead(parts.head, numbered);
+    return root && hasContent(parts.meaning) ? [{ ...root, meaning: parts.meaning }] : null;
+  }
+  const meaningAt = strict ? null : ROOT_MEANING_SEP.exec(maskNested(content));
+  if (meaningAt) {
+    const root = rootHead(content.slice(0, meaningAt.index), numbered);
+    const meaning = collapse(content.slice(meaningAt.index + meaningAt[0].length));
+    return root && hasContent(meaning) ? [{ ...root, meaning }] : null;
+  }
+  const pieces = splitOutside(content, ',;');
+  const roots = pieces.map((piece) => rootHead(piece, numbered));
+  return roots.length && roots.every(Boolean) ? roots : null;
+}
+
+// The spaces around the symbol are not part of the pattern: a leading `\s+`
+// would rescan long runs of spaces (quadratic time).
+const ROOT_MEANING_SEP = /(?<=\s)(?:[-–—]{1,2}|=>|=|→)(?=\s)/u;
+// Words joined by spaces, inner hyphens or apostrophes ("level-headed",
+// "sb's") and slashes ("colour / color"), once brackets are spaces
+// ("accuse (sb) of (sth)"). No digits, sentence punctuation or loose dashes.
+const ROOT_SHAPE = /^[\p{L}\p{M}]+(?:(?:['’\-–]|\s+|\s*\/\s*)[\p{L}\p{M}]+)*$/u;
+
+function rootHead(piece, numbered) {
+  const head = parseHead(piece);
+  const word = numbered ? head.word.replace(/\.$/, '') : head.word;
+  const words = tokenizeWords(word).length;
+  if (!words || words > (numbered ? MAX_HEAD_WORDS : MAX_ROOT_WORDS)) return null;
+  if (!ROOT_SHAPE.test(word.replace(/[()]/g, ' ').trim())) return null;
+  return { word, ipa: head.ipa, pos: head.pos };
+}
+
+// Splits on any of `chars` outside (), [] and /ipa/.
+function splitOutside(s, chars) {
+  const masked = maskNested(s);
+  const out = [];
+  let start = 0;
+  for (let i = 0; i < masked.length; i++) {
+    if (chars.includes(masked[i])) {
+      out.push(s.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(s.slice(start));
+  return out.map((p) => p.trim()).filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------

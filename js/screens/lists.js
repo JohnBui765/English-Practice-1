@@ -33,7 +33,8 @@ export function countLabel(list) {
 
 function itemWords(list) {
   const items = list.items || [];
-  if (list.kind === 'family') return items.flatMap((f) => (f.members || []).map((m) => m.word || ''));
+  // The pasted root too: a family still waiting for Claude has no members yet.
+  if (list.kind === 'family') return items.flatMap((f) => [f.root || '', ...(f.members || []).map((m) => m.word || '')].filter(Boolean));
   if (list.kind === 'passage') return items.map((p) => p.text || '');
   return items.map((i) => i.word || '');
 }

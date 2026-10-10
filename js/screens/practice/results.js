@@ -6,7 +6,8 @@ import { button, ring, section, row, posBadge } from '../../ui/components.js';
 import { pop, replace } from '../../ui/router.js';
 import { speak } from '../../ui/speech.js';
 import * as store from '../../data/store.js';
-import { MODES } from './session.js';
+import { memberForms, modelIndex } from '../../core/families.js';
+import { MODES, familyRoot } from './session.js';
 
 function formatDuration(ms) {
   const s = Math.max(1, Math.round(ms / 1000));
@@ -14,6 +15,51 @@ function formatDuration(ms) {
   const m = Math.floor(s / 60);
   const r = s % 60;
   return r ? `${m}m ${r}s` : `${m}m`;
+}
+
+// A speaker button for a results row.
+function sayButton(word) {
+  return h(
+    'button',
+    {
+      type: 'button',
+      class: 'icon-btn',
+      'aria-label': `Say ${word}`,
+      onClick: (e) => {
+        e.stopPropagation();
+        const s = store.settings();
+        speak(word, { rate: s.speechRate, voiceURI: s.voiceURI });
+      },
+    },
+    icon('speaker'),
+  );
+}
+
+// A missed family: its root (or model word) and the other members' words.
+// Word formation marks the members that were missed.
+function familyRow(item, missed) {
+  const members = item.members || [];
+  const mi = modelIndex(item);
+  const root = familyRoot(item);
+  const pos = item.rootPos || members[mi]?.pos || '';
+  const missedAt = new Set();
+  for (const x of missed.members || []) {
+    // By word: deleting a member since shifts the indices.
+    const at = x.word != null ? members.findIndex((m) => m.word === x.word) : x.member;
+    if (at >= 0) missedAt.add(at);
+  }
+  const words = [];
+  members.forEach((m, i) => {
+    const form = memberForms(m)[0];
+    if (!form || (i === mi && !missedAt.has(i))) return;
+    if (words.length) words.push(' · ');
+    words.push(missedAt.has(i) ? h('strong', { class: 'res-missed-form' }, form) : form);
+  });
+  return row({
+    title: h('span', { class: 'stack-h wrap' }, h('strong', { lang: 'en' }, root), posBadge(pos)),
+    subtitle: words.length ? h('span', { lang: 'en' }, words) : null,
+    accessory: root ? sayButton(root) : 'none',
+  });
 }
 
 function headline(acc) {
@@ -26,9 +72,12 @@ function headline(acc) {
 export default async function create(params) {
   const summary = params.summary || { total: 0, right: 0, hinted: 0, wrong: 0, accuracy: 0, missed: [], mode: 'review', durationMs: 0 };
   const mode = MODES[summary.mode] || MODES.review;
-  const head = headline(summary.accuracy);
   const isScored = summary.mode === 'family' || summary.mode === 'dictation';
+  // Word families, Word formation and Dictation do not schedule reviews.
+  const usesReview = !['family', 'formation', 'dictation'].includes(summary.mode);
   const pct = isScored ? summary.score ?? summary.accuracy : summary.accuracy;
+  // The ring's colour and the headline follow the number it shows.
+  const head = headline(pct);
 
   const r = ring({ fraction: 0, size: 148, stroke: 12, label: `${pct}%`, color: head.tone, labelSize: 36 });
   requestAnimationFrame(() => r.set(pct / 100));
@@ -49,23 +98,23 @@ export default async function create(params) {
         row({
           title: h('span', { class: 'stack-h wrap' }, h('strong', null, item.word), item.ipa ? h('span', { class: 'ipa' }, `/${item.ipa}/`) : null, posBadge(item.pos)),
           subtitle: item.senses.join(' · '),
-          accessory: h(
-            'button',
-            { type: 'button', class: 'icon-btn', 'aria-label': `Say ${item.word}`, onClick: (e) => { e.stopPropagation(); const s = store.settings(); speak(item.word, { rate: s.speechRate, voiceURI: s.voiceURI }); } },
-            icon('speaker'),
-          ),
+          accessory: sayButton(item.word),
         }),
       );
     } else if (list.kind === 'family') {
-      missedRows.push(row({ title: item.members.map((x) => x.word).join(' · '), subtitle: item.members[0]?.definition }));
+      missedRows.push(familyRow(item, m));
     } else {
       missedRows.push(row({ title: item.text.length > 90 ? item.text.slice(0, 90) + '…' : item.text }));
     }
   }
 
   const practiseMistakes = () => {
-    if (summary.mode === 'review') replace('practice', { mode: 'review', missed: summary.missed });
-    else replace('practice', { listId: summary.listId, mode: summary.mode, itemIds: summary.missed.map((m) => m.itemId) });
+    if (summary.mode === 'review') return replace('practice', { mode: 'review', missed: summary.missed });
+    const params = { listId: summary.listId, mode: summary.mode, itemIds: summary.missed.map((m) => m.itemId) };
+    // Word formation: only the members that were missed, not whole families.
+    const members = summary.missed.flatMap((m) => (m.members || []).filter((x) => x.word != null).map((x) => ({ itemId: m.itemId, word: x.word })));
+    if (summary.mode === 'formation' && members.length) params.members = members;
+    return replace('practice', params);
   };
 
   const body = h(
@@ -79,7 +128,7 @@ export default async function create(params) {
       stat(summary.wrong, summary.wrong === 1 ? 'Mistake' : 'Mistakes', summary.wrong ? 'var(--red-text)' : 'var(--label-2)'),
       stat(formatDuration(summary.durationMs), 'Time', 'var(--label)'),
     ),
-    summary.hinted ? h('p', { class: 'res-note' }, `${summary.hinted} answered with a hint — they'll come back a little sooner.`) : null,
+    summary.hinted ? h('p', { class: 'res-note' }, usesReview ? `${summary.hinted} answered with a hint — they'll come back a little sooner.` : `${summary.hinted} answered with a hint.`) : null,
     missedRows.length ? section({ header: 'To review', children: missedRows }) : null,
   );
 

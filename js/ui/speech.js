@@ -17,6 +17,26 @@ function loadVoices() {
   return cachedVoices;
 }
 
+// Every voice the browser offers, in every language, exactly as reported —
+// for the Settings diagnostics. Waits up to 2 s for the list to load.
+export function allVoicesRaw() {
+  if (!supported) return Promise.resolve([]);
+  const read = () => (window.speechSynthesis.getVoices() || []).map((v) => ({
+    name: v.name,
+    lang: v.lang,
+    voiceURI: v.voiceURI,
+    localService: v.localService,
+    default: v.default,
+  }));
+  const now = read();
+  if (now.length) return Promise.resolve(now);
+  return new Promise((resolve) => {
+    const done = () => resolve(read());
+    window.speechSynthesis.addEventListener('voiceschanged', done, { once: true });
+    setTimeout(done, 2000);
+  });
+}
+
 // Resolves with English voices once the browser has loaded them (≤ 1.5 s).
 export function englishVoices() {
   if (!supported) return Promise.resolve([]);

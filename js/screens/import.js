@@ -1,6 +1,6 @@
 // "New List" full-screen modal: paste a list, check the live preview, save.
 // params: {} for a new list, { listId } to edit an existing list's text.
-import { h } from '../ui/dom.js';
+import { h, reducedMotion } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { screen, section, row, button, segmented, textArea, textField, posBadge, emptyState, actionSheet, toast } from '../ui/components.js';
 import { pop, push } from '../ui/router.js';
@@ -9,6 +9,7 @@ import { keepVisible } from '../ui/viewport.js';
 import * as store from '../data/store.js';
 import { parseList, detectFormat } from '../core/parse.js';
 import { sentenceFromContext } from '../core/cloze.js';
+import { rootsText } from '../core/families.js';
 import { normalizeAnswer } from '../core/text.js';
 import { uid, debounce, plural, formatDate } from '../core/util.js';
 
@@ -28,6 +29,18 @@ const FORMAT_LABEL = {
   block: 'Words (block format)',
   family: 'Word families',
   passage: 'Passages',
+  wordlist: 'Word list',
+};
+
+// Families: Claude builds them from root words, or they are pasted written out.
+const FAMILY_OPTIONS = [
+  { value: 'claude', label: 'Make with Claude' },
+  { value: 'written', label: 'Already written' },
+];
+
+const FAMILY_HINT = {
+  claude: 'Claude builds the families after you save.',
+  written: 'Numbered forms, a blank line between families.',
 };
 
 const KIND_LABEL = { vocab: 'Words', family: 'Families', passage: 'Passages' };
@@ -59,7 +72,8 @@ function writeDraft(key, draft) {
 
 const PLACEHOLDER = '378.\n1. repository (n) /rɪˈpɑːzətɔːri/ : i) nơi lưu trữ... ii) ...\n2. acquit (v): ...';
 
-export function itemCount(kind, n) {
+export function itemCount(kind, n, format) {
+  if (kind === 'family' && format === 'roots') return plural(n, 'word');
   if (kind === 'family') return plural(n, 'family', 'families');
   if (kind === 'passage') return plural(n, 'passage');
   return plural(n, 'word');
@@ -69,8 +83,14 @@ const clip = (s, n) => (s.length > n ? `${s.slice(0, n).trimEnd()}…` : s);
 
 /* ---------- Editing an existing list ---------- */
 
+// A family is known by its root word, or by its model member when it was
+// pasted written out (root '').
+function familyKey(item) {
+  return normalizeAnswer(item.root || item.members?.[0]?.word || '');
+}
+
 function itemKey(kind, item) {
-  if (kind === 'family') return normalizeAnswer(item.members?.[0]?.word || '');
+  if (kind === 'family') return familyKey(item);
   if (kind === 'passage') return normalizeAnswer(item.text || '');
   return normalizeAnswer(item.word || '');
 }
@@ -95,6 +115,21 @@ function poolBy(items, keyOf) {
   return pool;
 }
 
+// Families pasted written out: a family whose text is the same as when the
+// list was saved keeps everything saved for it since (Claude's families, forms
+// removed in the family sheet).
+const writtenKey = (item) => JSON.stringify((item.members || []).map((m) => [m.word, m.pos, m.ipa, m.definition, m.example]));
+
+function unchangedFamilies(old, parsed) {
+  if (parsed.kind !== 'family' || parsed.format === 'roots' || !String(old?.rawText || '').trim()) return new Set();
+  try {
+    return new Set(parseList(old.rawText, { kind: 'family' }).items.map(writtenKey));
+  } catch (err) {
+    console.error(err);
+    return new Set();
+  }
+}
+
 // Keeps item ids for unchanged words (so progress and sentences survive),
 // keeps the learner's "Seen in" sentence, and drops sentences whose item or
 // meaning no longer exists. Words are matched on word + part of speech
@@ -102,6 +137,7 @@ function poolBy(items, keyOf) {
 export function mergeItems(old, parsed, now = Date.now()) {
   const sameKind = old && old.kind === parsed.kind;
   const oldItems = sameKind ? old.items || [] : [];
+  const unchanged = sameKind ? unchangedFamilies(old, parsed) : new Set();
   const used = new Set();
   const take = (pool, key) => {
     const queue = key ? pool.get(key) : null;
@@ -127,7 +163,13 @@ export function mergeItems(old, parsed, now = Date.now()) {
       if (item.context) contextChanged.add(item.id);
       return item;
     }
+    if (unchanged.has(writtenKey(item))) return prev;
     const next = { ...item, id: prev.id };
+    // Roots read again keep the families Claude already built for them.
+    if (parsed.format === 'roots' && !(item.members || []).length) {
+      next.members = prev.members || [];
+      next.note = prev.note || '';
+    }
     if (parsed.kind === 'vocab') {
       if (!next.context && prev.context) next.context = prev.context;
       if ((next.context || '') !== (prev.context || '')) contextChanged.add(next.id);
@@ -150,10 +192,13 @@ export function mergeItems(old, parsed, now = Date.now()) {
   return { items, sentences: kept };
 }
 
+const hasRoot = (f) => String(f?.root || '').trim() !== '';
+
 // Rebuilds editable text for a list saved without its original paste.
 function textFromItems(list) {
   const items = list.items || [];
   if (list.kind === 'passage') return items.map((p) => p.text).join('\n\n');
+  if (list.kind === 'family' && items.some(hasRoot)) return rootsText(items);
   if (list.kind === 'family') {
     return items
       .map((f) => (f.members || []).map((m, i) => `${i + 1}. ${m.word}${m.pos ? ` (${m.pos})` : ''}${m.ipa ? ` /${m.ipa}/` : ''}: ${m.definition || ''}${m.example ? `\nExample: ${m.example}` : ''}`).join('\n'))
@@ -167,6 +212,23 @@ function textFromItems(list) {
       return `${i + 1}. ${it.word}${it.pos ? ` (${it.pos})` : ''}${it.ipa ? ` /${it.ipa}/` : ''}: ${senses}${syn}`;
     })
     .join('\n');
+}
+
+// Does `text` read back as the roots of these families, in order?
+function readsAsRoots(text, items) {
+  if (!String(text || '').trim()) return false;
+  const roots = parseList(text, { kind: 'family', roots: true }).items;
+  return roots.length === items.length && roots.every((r, i) => familyKey(r) === familyKey(items[i]));
+}
+
+// The text Edit list starts from: the original paste, except for a family
+// list whose families Claude built and whose paste no longer reads as their
+// roots (families pasted written out, rebuilt by Claude since): its roots.
+function editText(list) {
+  const raw = list.rawText || '';
+  const items = list.items || [];
+  if (list.kind === 'family' && items.length && items.every(hasRoot) && !readsAsRoots(raw, items)) return rootsText(items);
+  return raw || textFromItems(list);
 }
 
 /* ---------- Screen ---------- */
@@ -190,7 +252,7 @@ export default async function create(params = {}) {
 
   const screenTitle = editing ? 'Edit List' : 'New List';
   const today = formatDate(Date.now());
-  const initialText = editing ? editing.rawText || textFromItems(editing) : '';
+  const initialText = editing ? editText(editing) : '';
   const initialTitle = editing ? editing.title || '' : '';
   const initialSource = editing ? editing.source || '' : '';
 
@@ -199,17 +261,22 @@ export default async function create(params = {}) {
     const auto = parseList(initialText);
     if (auto.kind !== editing.kind) choice = editing.kind;
   }
+  // Families only: 'claude' | 'written' picked by the learner; null follows the
+  // text. A list of Claude's families opens on "Make with Claude" however its
+  // text looks, so saving it again keeps them.
+  let familyPick = editing?.kind === 'family' && (editing.items || []).some(hasRoot) && readsAsRoots(initialText, editing.items) ? 'claude' : null;
   let parsed = null;
   let titleTouched = !!editing;
 
   const draftId = draftKey(editing?.id);
   const draft = readDraft(draftId);
   if (draft && KIND_OPTIONS.some((o) => o.value === draft.kind)) choice = draft.kind;
+  if (draft && 'familyPick' in draft) familyPick = FAMILY_OPTIONS.some((o) => o.value === draft.familyPick) ? draft.familyPick : null;
   if (draft && typeof draft.title === 'string' && draft.titleTouched) titleTouched = true;
   let saving = false;
   let saved = false;
 
-  const autoTitle = () => parsed?.title || `List · ${today}`;
+  const autoTitle = () => (parsed?.items?.length && parsed.title) || `List · ${today}`;
 
   /* ---------- controls ---------- */
 
@@ -249,6 +316,18 @@ export default async function create(params = {}) {
     },
   });
   const detectedEl = h('div', { class: 'imp-detected' });
+  const familyControl = segmented({
+    options: FAMILY_OPTIONS,
+    value: familyPick || 'claude',
+    ariaLabel: 'Families',
+    onChange: (v) => {
+      familyPick = v;
+      updatePreview();
+    },
+  });
+  const familyHint = h('div', { class: 'imp-detected imp-family-hint' });
+  const familyWrap = h('div', { class: 'imp-family' }, familyControl, familyHint);
+  familyWrap.hidden = true;
 
   const titleField = textField({
     value: draft && draft.titleTouched && typeof draft.title === 'string' ? draft.title : initialTitle,
@@ -291,7 +370,7 @@ export default async function create(params = {}) {
     body: [
       pasteBtn,
       section({ header: 'Your list', children: [ta] }),
-      section({ header: 'Type', plain: true, className: 'imp-kind', children: [kindControl, detectedEl] }),
+      section({ header: 'Type', plain: true, className: 'imp-kind', children: [kindControl, detectedEl, familyWrap] }),
       section({
         header: 'Details',
         footer: 'Where did these come from? Add a book, podcast or news site if you like.',
@@ -340,6 +419,15 @@ export default async function create(params = {}) {
     });
   }
 
+  // A root word Claude will build a family from: word, part of speech, meaning.
+  function rootRow(item, index) {
+    return row({
+      className: 'imp-item',
+      title: h('span', { class: 'imp-item-head' }, h('span', { class: 'imp-n tabular' }, String(index + 1)), h('span', { class: 'imp-word' }, item.root), posBadge(item.rootPos)),
+      subtitle: item.rootMeaning ? h('span', { class: 'imp-senses', lang: 'vi' }, item.rootMeaning) : null,
+    });
+  }
+
   function passageRow(item, index) {
     return row({
       className: 'imp-item',
@@ -361,7 +449,10 @@ export default async function create(params = {}) {
       section({
         className: 'imp-warn',
         header: h('span', { class: 'imp-warn-header' }, icon('info', { size: 16 }), `Couldn't read ${plural(warnings.length, 'line')}`),
-        footer: 'Each word needs a number, the word, then “:” and its meaning — like “4. acquit (v): tuyên vô tội”. Fix the lines above, or save without them.',
+        footer:
+          parsed.format === 'roots'
+            ? 'Put one word or short phrase on each line — like “authority” or “4. decide (v): quyết định”. Fix the lines above, or save without them.'
+            : 'Each word needs a number, the word, then “:” and its meaning — like “4. acquit (v): tuyên vô tội”. Fix the lines above, or save without them.',
         children: rows,
       }),
     );
@@ -381,53 +472,94 @@ export default async function create(params = {}) {
       );
       return;
     }
+    const roots = parsed.format === 'roots';
     if (!items.length) {
       previewHost.replaceChildren(
         h(
           'div',
           { class: 'imp-hint' },
           h('div', { class: 'imp-hint-title' }, 'Nothing to save yet'),
-          h('div', { class: 'imp-hint-text' }, 'Start each word on a new line with its number, like “1. repository (n): …”.'),
+          h(
+            'div',
+            { class: 'imp-hint-text' },
+            roots
+              ? 'Put one word on each line, like “authority”.'
+              : parsed.kind === 'family'
+                ? 'Number each form from 1, like “1. strength (noun): …”, with a blank line between families.'
+                : 'Start each word on a new line with its number, like “1. repository (n): …”.',
+          ),
         ),
       );
       return;
     }
     const shown = items.slice(0, PREVIEW_MAX);
-    const rows = shown.map((item, i) => (parsed.kind === 'family' ? familyRow(item, i) : parsed.kind === 'passage' ? passageRow(item, i) : vocabRow(item)));
+    const make = roots ? rootRow : parsed.kind === 'family' ? familyRow : parsed.kind === 'passage' ? passageRow : (item) => vocabRow(item);
+    const rows = shown.map((item, i) => make(item, i));
     const more = items.length - shown.length;
+    const count = itemCount(parsed.kind, items.length, parsed.format);
     previewHost.replaceChildren(
       section({
-        className: 'imp-preview',
-        header: itemCount(parsed.kind, items.length),
+        className: roots ? 'imp-preview imp-roots' : 'imp-preview',
+        header: roots ? h('span', { class: 'imp-roots-head' }, icon('sparkles', { size: 16 }), h('span', null, `${count} — Claude will build their families next`)) : count,
         footer: more > 0 ? `And ${more} more.` : null,
         children: rows,
       }),
     );
   }
 
-  function updateDetected(text) {
+  function updateDetected(text, format) {
     if (!text.trim()) {
       detectedEl.textContent = 'Auto works out the type from your text.';
       return;
     }
-    const detected = FORMAT_LABEL[detectFormat(text)] || 'Words';
+    const detected = FORMAT_LABEL[format] || 'Words';
     detectedEl.textContent = choice === 'auto' || KIND_LABEL[choice] === undefined ? `Detected: ${detected}` : `Detected: ${detected} · reading as ${KIND_LABEL[choice]}`;
+  }
+
+  // Families: "Make with Claude" / "Already written" — the learner's pick, or
+  // what the text looks like (blank-line blocks numbered from 1 → written).
+  const familyMode = (format) => familyPick || (format === 'family' ? 'written' : 'claude');
+
+  function updateFamilyControl(format) {
+    const show = parsed?.kind === 'family';
+    if (show) {
+      const mode = familyMode(format);
+      familyControl.setValue(mode);
+      familyHint.textContent = FAMILY_HINT[mode];
+    }
+    if (familyWrap.hidden === show) {
+      familyWrap.hidden = !show;
+      if (show && !reducedMotion()) familyWrap.animate([{ opacity: 0, transform: 'translate3d(0,-4px,0)' }, { opacity: 1, transform: 'none' }], { duration: 200, easing: 'ease-out' });
+    }
   }
 
   function updateSave() {
     const n = parsed?.items.length || 0;
     const ok = n > 0 && !saving;
     footerSave.disabled = !ok;
-    footerLabel.textContent = n ? `Save ${itemCount(parsed.kind, n)}` : 'Save';
+    footerLabel.textContent = n ? `Save ${itemCount(parsed.kind, n, parsed.format)}` : 'Save';
+  }
+
+  function parseText(text, format) {
+    const result = parseList(text, choice === 'auto' ? {} : { kind: choice });
+    if (result.kind !== 'family') return result;
+    const wantRoots = familyMode(format) === 'claude';
+    if (wantRoots === (result.format === 'roots')) return result;
+    return parseList(text, wantRoots ? { kind: 'family', roots: true } : { kind: 'family' });
   }
 
   function updatePreview() {
     scheduleDraft();
     const text = ta.value;
-    parsed = text.trim() ? parseList(text, choice === 'auto' ? {} : { kind: choice }) : null;
-    if (!titleTouched) titleField.value = parsed?.title || '';
+    // Emptied: the next text picks its own family mode again.
+    if (!text.trim()) familyPick = null;
+    const format = text.trim() ? detectFormat(text) : null;
+    parsed = text.trim() ? parseText(text, format) : null;
+    // A title only from text that reads as a list (not "authority" from words read as written families).
+    if (!titleTouched) titleField.value = parsed?.items.length ? parsed.title || '' : '';
     titleField.placeholder = autoTitle();
-    updateDetected(text);
+    updateDetected(text, format);
+    updateFamilyControl(format);
     renderWarnings();
     renderPreview();
     updateSave();
@@ -455,6 +587,9 @@ export default async function create(params = {}) {
       return;
     }
     const before = ta.value;
+    const pickBefore = familyPick;
+    // New text picks its own family mode again.
+    if (before !== text) familyPick = null;
     ta.value = text;
     ta.scrollTop = 0;
     updatePreview();
@@ -467,6 +602,7 @@ export default async function create(params = {}) {
           label: 'Undo',
           onTap: () => {
             ta.value = before;
+            familyPick = pickBefore;
             updatePreview();
           },
         },
@@ -529,7 +665,7 @@ export default async function create(params = {}) {
     clearTimeout(draftTimer);
     draftTimer = 0;
     if (saved || left) return;
-    writeDraft(draftId, isDirty() ? { text: ta.value, title: titleField.value, titleTouched, source: sourceField.value, kind: choice, at: Date.now() } : null);
+    writeDraft(draftId, isDirty() ? { text: ta.value, title: titleField.value, titleTouched, source: sourceField.value, kind: choice, familyPick, at: Date.now() } : null);
   }
 
   function scheduleDraft() {

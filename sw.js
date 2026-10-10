@@ -1,10 +1,11 @@
 // Offline support. The precache list and VERSION are rewritten by
 // `node tools/update-sw.mjs` — run it after changing any app file so installed
 // apps pick up the new version.
-const VERSION = '34ca91d48b';
+const VERSION = '78706b6d6c';
 const PRECACHE = [
   './',
   'css/app.css',
+  'css/screens/families.css',
   'css/screens/import.css',
   'css/screens/list-detail.css',
   'css/screens/lists.css',
@@ -12,6 +13,7 @@ const PRECACHE = [
   'css/screens/mode-dictation.css',
   'css/screens/mode-family.css',
   'css/screens/mode-flashcard.css',
+  'css/screens/mode-formation.css',
   'css/screens/mode-meaning.css',
   'css/screens/practice.css',
   'css/screens/sentences.css',
@@ -25,7 +27,9 @@ const PRECACHE = [
   'index.html',
   'js/app.js',
   'js/core/cloze.js',
+  'js/core/families.js',
   'js/core/grade.js',
+  'js/core/json.js',
   'js/core/parse.js',
   'js/core/srs.js',
   'js/core/text.js',
@@ -33,6 +37,7 @@ const PRECACHE = [
   'js/data/db.js',
   'js/data/sample.js',
   'js/data/store.js',
+  'js/screens/families.js',
   'js/screens/import.js',
   'js/screens/index.js',
   'js/screens/list-detail.js',
@@ -41,6 +46,7 @@ const PRECACHE = [
   'js/screens/practice/dictation.js',
   'js/screens/practice/family.js',
   'js/screens/practice/flashcard.js',
+  'js/screens/practice/formation.js',
   'js/screens/practice/meaning.js',
   'js/screens/practice/practice.js',
   'js/screens/practice/results.js',

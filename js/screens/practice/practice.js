@@ -1,5 +1,5 @@
 // Practice screen: full-screen modal that runs a session card by card.
-// Mode modules (cloze, meaning, flashcard, family, dictation) render the card
+// Mode modules (cloze, meaning, flashcard, family, formation, dictation) render the card
 // body; this screen owns the header, the footer (Check → feedback → Continue)
 // and moving between cards.
 import { h } from '../../ui/dom.js';
@@ -10,14 +10,15 @@ import { speak as tts, stop as stopSpeech } from '../../ui/speech.js';
 import { reducedMotion } from '../../ui/dom.js';
 import { revealField } from '../../ui/viewport.js';
 import * as store from '../../data/store.js';
-import { MODES, buildCards, buildReviewCards, createSession, currentCard, answer, isFinished, progressFraction, commit, summarize, getSnapshot, clearSnapshot, liveCards, recoverSnapshot, commitPausedSession } from './session.js';
+import { MODES, buildCards, buildReviewCards, createSession, currentCard, answer, isFinished, progressFraction, commit, summarize, getSnapshot, clearSnapshot, liveCards, cardResolves, recoverSnapshot, commitPausedSession } from './session.js';
 import * as cloze from './cloze.js';
 import * as meaning from './meaning.js';
 import * as flashcard from './flashcard.js';
 import * as family from './family.js';
+import * as formation from './formation.js';
 import * as dictation from './dictation.js';
 
-const RENDERERS = { cloze, meaning, flashcard, family, dictation };
+const RENDERERS = { cloze, meaning, flashcard, family, formation, dictation };
 const PRAISE = ['Correct!', 'Nice!', 'Great!', 'Well done!', 'Spot on!'];
 // After the footer changes (Check → Continue, Show answer → grade buttons,
 // a new card), taps are ignored this long: the second tap of a double tap
@@ -27,6 +28,8 @@ const SETTLE_MS = 350;
 // params:
 //   { listId, mode }                     practise one list in a mode
 //   { listId, mode, itemIds }            only these items (e.g. mistakes)
+//   { listId, mode: 'formation', itemIds, members: [{ itemId, word }] }
+//                                        only these family members (mistakes)
 //   { mode: 'review' }                   words due today across lists
 //   { mode: 'review', missed: [{ itemId, listId }] }   review mistakes
 //   { resume: true }                     continue the saved session
@@ -76,9 +79,10 @@ export default async function create(params) {
       emptyMessage = { title: 'List not found', message: 'It may have been deleted.' };
     } else {
       lists.set(list.id, list);
-      const cards = buildCards(list, params.mode, { itemIds: params.itemIds || null });
+      const cards = buildCards(list, params.mode, { itemIds: params.itemIds || null, members: params.members || null });
       if (cards.length) session = createSession({ mode: params.mode, listId: list.id, title: list.title, cards });
-      else if (params.mode === 'cloze') emptyMessage = { title: 'No sentences yet', message: 'Make context sentences for this list first — it takes about a minute with the Claude app.' };
+      else if (params.mode === 'cloze') emptyMessage = { title: 'No sentences yet', message: 'Make context sentences for this list first — it takes about a minute with the Claude app.', icon: 'sparkles' };
+      else if ((params.mode === 'family' || params.mode === 'formation') && !list.items.some((i) => (i.members?.length ?? 0) > 1)) emptyMessage = { title: 'No word families yet', message: 'Make them with the Claude app first — it takes about a minute.', icon: 'sparkles' };
       else emptyMessage = { title: 'Nothing to practise', message: 'This list has no items for this mode.' };
     }
   }
@@ -118,7 +122,7 @@ export default async function create(params) {
   let pausedSave = null; // saving an older paused session (see commitPausedSession)
 
   if (!session) {
-    scroller.replaceChildren(emptyState({ icon: params.mode === 'cloze' ? 'sparkles' : 'checkCircle', title: emptyMessage.title, message: emptyMessage.message }));
+    scroller.replaceChildren(emptyState({ icon: emptyMessage.icon || 'checkCircle', title: emptyMessage.title, message: emptyMessage.message }));
     primaryLabel.textContent = 'Close';
     footer.dataset.state = 'empty';
     counter.textContent = '';
@@ -218,12 +222,10 @@ export default async function create(params) {
   function showCard() {
     clearAuto();
     let card = currentCard(session);
-    // Skip cards whose item/sentence was deleted since the session started.
+    // Skip cards whose item, sentence or family member was deleted since the
+    // session started.
     while (card) {
-      const list = lists.get(card.listId);
-      const item = list?.items.find((i) => i.id === card.itemId);
-      const sentence = card.sentenceId ? list?.sentences?.find((s) => s.id === card.sentenceId) : null;
-      if (item && (!card.sentenceId || sentence)) break;
+      if (cardResolves(card, lists)) break;
       session.index += 1;
       session.done += 1;
       card = currentCard(session);

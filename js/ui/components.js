@@ -460,6 +460,7 @@ export function hasOpenOverlay() {
 }
 
 export function alert({ title, message = '', actions = [{ label: 'OK', value: true, style: 'default' }] } = {}) {
+  dismissToast();
   return new Promise((resolve) => {
     const vertical = actions.length > 2;
     const ordered = vertical ? actions : [...actions].sort((a, b) => (a.style === 'cancel' ? -1 : b.style === 'cancel' ? 1 : 0));
@@ -508,6 +509,7 @@ export async function confirm({ title, message = '', confirmLabel = 'OK', cancel
 }
 
 export function actionSheet({ title = '', message = '', actions = [], cancelLabel = 'Cancel' } = {}) {
+  dismissToast();
   return new Promise((resolve) => {
     let overlay;
     const done = (value) => {
@@ -597,6 +599,17 @@ export function sheet({ title = '', content = [], onClose, left, right, classNam
 
 let toastTimer = null;
 let toastEl = null;
+
+// A question (alert / action sheet) clears the current toast so it never
+// covers the question.
+function dismissToast() {
+  if (!toastEl) return;
+  const el = toastEl;
+  toastEl = null;
+  clearTimeout(toastTimer);
+  el.classList.remove('show');
+  setTimeout(() => el.remove(), 400);
+}
 
 export function toast(message, { icon: iconName = 'checkCircle', tone = 'green', duration = 2200, action, className = '' } = {}) {
   let host = document.querySelector('.toast-host');

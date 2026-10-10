@@ -464,6 +464,12 @@ describe('fuzz: random pastes keep the output well-formed', () => {
         }
         if (result.kind === 'family') {
           for (const family of result.items) {
+            if (result.format === 'roots') {
+              // A plain word list: families still empty until Claude builds them
+              // (docs/architecture.md, "Word families from Claude").
+              assert.ok(family.root.length > 0 && family.members.length === 0, context);
+              continue;
+            }
             assert.ok(family.members.length >= 1, context);
             for (const m of family.members) assert.ok(m.word.length > 0, context);
           }

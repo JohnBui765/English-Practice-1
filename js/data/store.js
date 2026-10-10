@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   sentencesPerSense: 1,
   level: 'B2',
   reviewLimit: 20,
+  familyTranslate: true, // ask Claude for Vietnamese translations of family examples
 });
 
 const APP_ID = 'vocab-studio';

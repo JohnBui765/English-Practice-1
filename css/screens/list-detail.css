@@ -175,10 +175,15 @@
   font-size: 15px;
 }
 
-.ld-mode.needs .ld-mode-icon,
+/* Waiting for sentences or families: the icon is dimmed, the text stays
+   readable (the card still opens the screen that fills it). */
+.ld-mode.needs .ld-mode-icon {
+  opacity: 0.45;
+}
+
 .ld-mode.needs .ld-mode-label,
 .ld-mode.needs .ld-mode-text {
-  opacity: 0.45;
+  color: var(--label-2);
 }
 
 .ld-mode.needs .ld-mode-count {
@@ -456,6 +461,8 @@
 
 .ld-member {
   align-items: flex-start;
+  padding-top: 12px;
+  padding-bottom: 14px;
 }
 
 .ld-member .row-main {
@@ -464,20 +471,134 @@
   gap: 3px;
 }
 
+.ld-member .ld-item-head {
+  min-height: 22px;
+}
+
+.ld-member .ipa {
+  font-size: 14px;
+}
+
+.ld-member-mean {
+  font-size: 15px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.ld-member-hint {
+  color: var(--label-2);
+  font-style: italic;
+}
+
 .ld-member-def {
   font-size: 15px;
   line-height: 20px;
 }
 
+/* Example + translation, set off like a quote. */
+.ld-member-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--separator);
+}
+
 .ld-member-ex {
+  font-size: 16px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.ld-member-exvi {
   color: var(--label-2);
   font-size: 15px;
   line-height: 20px;
-  font-style: italic;
+  overflow-wrap: anywhere;
 }
 
-.ld-member .ld-speak {
-  margin-top: -4px;
+.ld-member-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: -10px -10px -6px 0;
+}
+
+.ld-member-actions .ld-speak {
+  margin: 0;
+}
+
+.ld-member-trash {
+  color: var(--label-2);
+}
+
+.ld-member-trash svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ld-member-trash:active {
+  color: var(--red-text);
+}
+
+/* ---------- Family sheet ---------- */
+.ld-fs-meaning {
+  margin-top: 8px;
+  font-size: 17px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.card.ld-fs-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.ld-fs-note svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.card.ld-fs-wait {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 24px;
+  padding: 16px;
+}
+
+.ld-fs-wait-title {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.ld-fs-wait-text {
+  margin: 0 0 8px;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+/* ---------- Family rows ---------- */
+.ld-hero-status {
+  margin: -4px 0 0;
+  color: var(--accent-on-tint);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.ld-families .row-title,
+.ld-fam-link.linked .row-title {
+  font-weight: 600;
 }
 
 .card.ld-passage {

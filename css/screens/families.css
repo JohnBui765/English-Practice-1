@@ -1,0 +1,477 @@
+/* Make word families screen: status, copy prompt → Claude → paste reply, current families.
+   Same look as the Sentences screen (its own classes, so either can change alone). */
+
+.families-screen .card {
+  padding: 16px;
+}
+
+/* ---------- Status header ---------- */
+.fm-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.fm-status .ring-label {
+  letter-spacing: -0.02em;
+}
+
+.fm-status-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.fm-status-title {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.fm-status-sub {
+  margin-top: 2px;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--label-2);
+}
+
+/* ---------- Steps ---------- */
+.fm-step {
+  margin-bottom: 16px;
+}
+
+.fm-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.fm-step-num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--accent-fill);
+  color: var(--on-fill);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 240ms linear;
+}
+
+.fm-step-num.done {
+  background: var(--green-fill);
+}
+
+.fm-step-num svg {
+  stroke-width: 3;
+}
+
+.fm-step-titles {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.fm-step-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 25px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.fm-step-text {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--label-2);
+}
+
+.fm-step-text:empty {
+  display: none;
+}
+
+/* Options (inside step 1) */
+.fm-opts {
+  margin: 0 0 14px;
+  border-top: 0.5px solid var(--separator);
+}
+
+.fm-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 0;
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.fm-opt[hidden] {
+  display: none;
+}
+
+.fm-opt-label {
+  min-width: 0;
+  font-size: 16px;
+  line-height: 21px;
+}
+
+.fm-opt-sub {
+  margin-top: 1px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label-2);
+}
+
+.fm-opt .segmented,
+.fm-opt .switch {
+  flex: none;
+}
+
+.fm-seg-3 {
+  width: 156px;
+}
+
+/* Links under the copy button */
+.fm-links {
+  display: flex;
+  gap: 8px;
+  margin: 6px -6px 0;
+}
+
+.fm-link {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 16px;
+  gap: 6px;
+}
+
+.fm-link svg {
+  width: 18px;
+  height: 18px;
+}
+
+.fm-disclose svg {
+  transition: transform 260ms var(--ease);
+}
+
+.fm-disclose[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.fm-prompt {
+  margin-top: 8px;
+  height: 232px;
+  font-size: 16px;
+  line-height: 21px;
+  color: var(--label-2);
+  animation: fm-in 240ms var(--ease-out);
+}
+
+/* Step 2 */
+.fm-reply {
+  margin-top: 12px;
+  height: 140px;
+  min-height: 140px;
+  font-size: 16px;
+  line-height: 21px;
+}
+
+.fm-reply-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  margin-bottom: -4px;
+}
+
+.fm-reply-hint {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label-2);
+}
+
+.fm-clear {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  margin-right: -8px;
+  padding: 0 8px;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 10px;
+  transition: opacity 120ms linear;
+}
+
+.fm-clear:active {
+  opacity: 0.4;
+}
+
+/* ---------- Result of reading the reply ---------- */
+.fm-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fm-result:not(:empty) {
+  margin-top: 8px;
+}
+
+.fm-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--fill);
+  font-size: 15px;
+  line-height: 20px;
+  animation: fm-in 220ms var(--ease-out);
+}
+
+.fm-note.ok {
+  background: var(--green-tint);
+}
+
+.fm-note.warn {
+  background: var(--orange-tint);
+}
+
+.fm-note-icon {
+  flex: none;
+  display: inline-flex;
+  margin-top: 1px;
+  color: var(--label-2);
+}
+
+.fm-note.ok .fm-note-icon {
+  color: var(--green);
+}
+
+.fm-note.warn .fm-note-icon {
+  color: var(--orange);
+}
+
+.fm-note-icon svg {
+  stroke-width: 2.2;
+}
+
+.fm-note-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.fm-note-title {
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: 600;
+}
+
+.fm-note-text {
+  color: var(--label);
+  overflow-wrap: anywhere;
+}
+
+.fm-note-body .fm-note-text {
+  margin-top: 2px;
+  color: var(--label-2);
+}
+
+.fm-note-list {
+  margin: 6px 0 0;
+  padding: 0 0 0 18px;
+  color: var(--label);
+  overflow-wrap: anywhere;
+}
+
+.fm-note-list li + li {
+  margin-top: 4px;
+}
+
+.fm-ref {
+  font-weight: 600;
+}
+
+.fm-more {
+  list-style: none;
+  margin-left: -18px;
+  color: var(--label-2);
+}
+
+.fm-missing-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: fm-in 220ms var(--ease-out);
+}
+
+.fm-missing-btn {
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 15px;
+  white-space: normal;
+}
+
+.fm-missing-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.fm-missing-foot {
+  text-align: center;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label-2);
+}
+
+/* ---------- Current families ---------- */
+.fm-current {
+  margin-top: 12px;
+}
+
+.fm-cur-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 4px;
+  text-align: left;
+  color: var(--label);
+  border-radius: 10px;
+  transition: opacity 120ms linear;
+}
+
+.fm-cur-head:active {
+  opacity: 0.55;
+}
+
+.fm-cur-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fm-cur-title {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.fm-cur-count {
+  font-size: 17px;
+  color: var(--label-2);
+}
+
+.fm-cur-chevron {
+  margin-left: auto;
+  display: inline-flex;
+  color: var(--accent);
+  transition: transform 260ms var(--ease);
+}
+
+.fm-cur-chevron svg {
+  stroke-width: 2.6;
+}
+
+.fm-cur-head[aria-expanded='true'] .fm-cur-chevron {
+  transform: rotate(180deg);
+}
+
+.fm-cur-body {
+  padding-top: 6px;
+  animation: fm-in 240ms var(--ease-out);
+}
+
+.fm-fam {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 44px;
+  padding: 11px 16px 12px 12px;
+}
+
+.fm-fam + .fm-fam::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 46px;
+  right: 0;
+  height: 0.5px;
+  background: var(--separator);
+}
+
+.fm-fam-n {
+  flex: none;
+  width: 22px;
+  padding-top: 1px;
+  text-align: right;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.fm-fam-main {
+  flex: 1;
+  min-width: 0;
+  padding-left: 6px;
+}
+
+.fm-fam-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.fm-fam-root {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.fm-fam .badge {
+  height: 20px;
+  padding: 0 7px;
+  font-size: 12px;
+}
+
+.fm-fam-words,
+.fm-fam-detail {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+}
+
+/* Pending: the meaning, up to two lines. */
+.fm-fam-meaning {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+@keyframes fm-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+}

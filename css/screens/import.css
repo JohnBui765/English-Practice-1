@@ -216,3 +216,40 @@
   font-size: 15px;
   line-height: 20px;
 }
+
+/* ---------- Families: make with Claude / already written ---------- */
+.imp-family {
+  margin-top: 14px;
+}
+
+.imp-family[hidden] {
+  display: none;
+}
+
+.imp-family .segmented {
+  margin: 0;
+}
+
+/* ---------- Roots preview ---------- */
+.imp-roots .section-header {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.imp-roots-head {
+  display: inline-flex;
+  text-wrap: balance;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label-2);
+}
+
+.imp-roots-head svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  color: var(--accent);
+}
